@@ -1,0 +1,13 @@
+{
+    "C_Cpp.dimInactiveRegions": true,
+    "cmake.configureOnOpen": false,
+    "files.associations": {
+        "system_error": "cpp",
+        "array": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp"
+    },
+    "idf.pythonInstallPath": "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
+}

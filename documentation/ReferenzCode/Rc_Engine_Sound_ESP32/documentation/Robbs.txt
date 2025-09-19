@@ -1,0 +1,8 @@
+Aenderungen für platformio.ini nötig:
+    ;https://github.com/FastLED/FastLED ; the current version of FastLED may not work for all users, use version below in this case <<-- OK for espressif32 @4.3.0
+    https://github.com/FastLED/FastLED/archive/refs/tags/3.3.3.tar.gz ; Some users are reporting, that they have to use v3.3.3
+    
+Aenderung für src.ino to src.cpp
+
+Aenderung des Ordnernamens
+    RC_ENGINE_SOUND_ESP32-masters to RC_ENGINE_SOUND_ESP32
