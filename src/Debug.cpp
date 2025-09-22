@@ -1,16 +1,25 @@
 #include "Debug.h"
 #include <Arduino.h>
 
-    // Zugriffsmethode
+    // Zugriffsmethode für die einzige Instanz
     Debug& Debug::getInstance() {
         static Debug instance;   // wird nur einmal erzeugt
     return instance;
-}
-
-    Debug::Debug(){
-        Serial.begin(115200);
     }
 
+    //Konstruktor
+    Debug::Debug(){
+        Serial.begin(115200);
+        Serial.println("Serielle Schnittstelle gestartet - BaudRate 115200");
+    }
+
+    //Destruktor
+    Debug::~Debug() {
+        Serial.end();
+        Serial.println("Serielle Schnittstelle beendet - Debug Instanz wurde zerstört");
+    }
+
+    // Debuglevel für die einzelnen Bereiche setzen
     void Debug::setController(DebugLevel level){
         debugController = static_cast<uint8_t>(level);
     }
@@ -31,6 +40,7 @@
         debugFunction = static_cast<uint8_t>(level);
     }
 
+    // Nachrichten mit Debuglevel der einzelnen Bereiche vergleichen und dann entsprechen schicken, oder unterdrücken
     void Debug::controller(DebugLevel level, const String& s){
           if (static_cast<uint8_t>(debugController) >= static_cast<uint8_t>(level)){
           Serial.println(s);
