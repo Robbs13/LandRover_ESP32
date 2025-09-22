@@ -1,110 +1,85 @@
 #include <Arduino.h>
+#include "ControllerWrapper.h"
+#include "Debug.h"
 
-#include "PS4Controller.h"
-#include "esp_bt_main.h"
-#include "esp_bt_device.h"
-#include "esp_gap_bt_api.h"
-#include "esp_err.h"
-
-unsigned long lastTimeStamp = 0;
-#define EVENTS 0
-#define BUTTONS 0
-#define JOYSTICKS 1
-#define SENSORS 0
-
-
-void removePairedDevices() {
-  uint8_t pairedDeviceBtAddr[20][6];
-  int count = esp_bt_gap_get_bond_device_num();
-  esp_bt_gap_get_bond_device_list(&count, pairedDeviceBtAddr);
-  for (int i = 0; i < count; i++) {
-    esp_bt_gap_remove_bond_device(pairedDeviceBtAddr[i]);
-  }
-}
-
-void printDeviceAddress() {
-  const uint8_t* point = esp_bt_dev_get_address();
-  for (int i = 0; i < 6; i++) {
-    char str[3];
-    sprintf(str, "%02x", (int)point[i]);
-    Serial.print(str);
-    if (i < 5) {
-      Serial.print(":");
-    }
-  }
-}
-
-void onConnect() {
-  Serial.println("Connected!");
-}
-
-void notify() {
-#if EVENTS
-  boolean sqd = PS4.event.button_down.square,
-          squ = PS4.event.button_up.square,
-          trd = PS4.event.button_down.triangle,
-          tru = PS4.event.button_up.triangle;
-  if (sqd)
-    Serial.println("SQUARE down");
-  else if (squ)
-    Serial.println("SQUARE up");
-  else if (trd)
-    Serial.println("TRIANGLE down");
-  else if (tru)
-    Serial.println("TRIANGLE up");
-#endif
-
-#if BUTTONS
-  boolean sq = PS4.Square(),
-          tr = PS4.Triangle();
-  if (sq)
-    Serial.print(" SQUARE pressed");
-  if (tr)
-    Serial.print(" TRIANGLE pressed");
-  if (sq | tr)
-    Serial.println();
-#endif
-
-  //Only needed to print the message properly on serial monitor. Else we dont need it.
-  if (millis() - lastTimeStamp > 50) {
-#if JOYSTICKS
-    Serial.printf("lx:%4d,ly:%4d,rx:%4d,ry:%4d\n",
-                  PS4.LStickX(),
-                  PS4.LStickY(),
-                  PS4.RStickX(),
-                  PS4.RStickY());
-#endif
-#if SENSORS
-    Serial.printf("gx:%5d,gy:%5d,gz:%5d,ax:%5d,ay:%5d,az:%5d\n",
-                  PS4.GyrX(),
-                  PS4.GyrY(),
-                  PS4.GyrZ(),
-                  PS4.AccX(),
-                  PS4.AccY(),
-                  PS4.AccZ());
-#endif
-    lastTimeStamp = millis();
-  }
-}
-
-void onDisConnect() {
-  Serial.println("Disconnected!");
-}
-
+#include <PS4Controller.h>
 
 void setup() {
-  Serial.begin(115200);
-  PS4.attach(notify);
-  PS4.attachOnConnect(onConnect);
-  PS4.attachOnDisconnect(onDisConnect);
+  //Debuglevel einrichten
+  Debug::getInstance().setController(DebugLevel::Info);
+  Debug::getInstance().setLight(DebugLevel::None);
+  Debug::getInstance().setSound(DebugLevel::None);
+  Debug::getInstance().setDrive(DebugLevel::None);
+  Debug::getInstance().setFunction(DebugLevel::None);
+
+  //Serial.begin(115200);
   PS4.begin();
-  removePairedDevices(); // This helps to solve connection issues
-  Serial.print("This device MAC is: ");
-  printDeviceAddress();
-  Serial.println("");
+  Serial.println("Ready.");
+  Serial.printf("Battery Level : %d\n", PS4.Battery());
 }
 
 void loop() {
-  delay(100);
+  // Below has all accessible outputs from the controller
+  if (PS4.isConnected()) {
+    if (PS4.Right()) Serial.println("Right Button");
+    if (PS4.Down()) Serial.println("Down Button");
+    if (PS4.Up()) Serial.println("Up Button");
+    if (PS4.Left()) Serial.println("Left Button");
+
+    if (PS4.Square()) Serial.println("Square Button");
+    if (PS4.Cross()) Serial.println("Cross Button");
+    if (PS4.Circle()) Serial.println("Circle Button");
+    if (PS4.Triangle()) Serial.println("Triangle Button");
+
+    if (PS4.UpRight()) Serial.println("Up Right");
+    if (PS4.DownRight()) Serial.println("Down Right");
+    if (PS4.UpLeft()) Serial.println("Up Left");
+    if (PS4.DownLeft()) Serial.println("Down Left");
+
+    if (PS4.L1()) Serial.println("L1 Button");
+    if (PS4.R1()) Serial.println("R1 Button");
+
+    if (PS4.Share()) Serial.println("Share Button");
+    if (PS4.Options()) Serial.println("Options Button");
+    if (PS4.L3()) Serial.println("L3 Button");
+    if (PS4.R3()) Serial.println("R3 Button");
+
+    if (PS4.PSButton()) Serial.println("PS Button");
+    if (PS4.Touchpad()) Serial.println("Touch Pad Button");
+
+    if (PS4.L2()) {
+      Serial.printf("L2 button at %d\n", PS4.L2Value());
+    }
+    if (PS4.R2()) {
+      Serial.printf("R2 button at %d\n", PS4.R2Value());
+    }
+
+    if (PS4.LStickX()) {
+      Serial.printf("Left Stick x at %d\n", PS4.LStickX());
+    }
+    if (PS4.LStickY()) {
+      Serial.printf("Left Stick y at %d\n", PS4.LStickY());
+    }
+    if (PS4.RStickX()) {
+      Serial.printf("Right Stick x at %d\n", PS4.RStickX());
+    }
+    if (PS4.RStickY()) {
+      Serial.printf("Right Stick y at %d\n", PS4.RStickY());
+    }
+
+    if (PS4.Charging()) Serial.println("The controller is charging");
+    if (PS4.Audio()) Serial.println("The controller has headphones attached");
+    if (PS4.Mic()) Serial.println("The controller has a mic attached");
+
+    Serial.printf("Battery Level : %d\n", PS4.Battery());
+
+    Serial.printf("Battery Status : %d\n", PS4.data.status.battery);
+
+    Serial.println();
+    // This delay is to make the output more human readable
+    // Remove it when you're not trying to see the output
+    delay(1000);
+  }
 }
+
 
