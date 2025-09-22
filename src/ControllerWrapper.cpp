@@ -60,7 +60,7 @@ void ControllerWrapper::notify() {
     if ((millis() - lastTimeStamp) > 1000)
     {
         u_int8_t *test = PS4.data.latestPacket;
-        Serial.println('test');
+        //Serial.println('test');
         lastTimeStamp = millis();
     }
     

@@ -31,31 +31,31 @@
         debugFunction = static_cast<uint8_t>(level);
     }
 
-    void Debug::controller(DebugLevel level, String& s){
+    void Debug::controller(DebugLevel level, const String& s){
           if (static_cast<uint8_t>(debugController) >= static_cast<uint8_t>(level)){
           Serial.println(s);
           }
     }
 
-    void Debug::light(DebugLevel level, String& s){
+    void Debug::light(DebugLevel level, const String& s){
           if (static_cast<uint8_t>(debugLight) >= static_cast<uint8_t>(level)){
           Serial.println(s);
           }
     }
 
-    void Debug::sound(DebugLevel level, String& s){
+    void Debug::sound(DebugLevel level, const String& s){
           if (static_cast<uint8_t>(debugSound) >= static_cast<uint8_t>(level)){
           Serial.println(s);
           }
     }
 
-    void Debug::drive(DebugLevel level, String& s){
+    void Debug::drive(DebugLevel level, const String& s){
           if (static_cast<uint8_t>(debugDrive) >= static_cast<uint8_t>(level)){
           Serial.println(s);
           }
     }
 
-    void Debug::function(DebugLevel level, String& s){
+    void Debug::function(DebugLevel level, const String& s){
           if (static_cast<uint8_t>(debugFunction) >= static_cast<uint8_t>(level)){
           Serial.println(s);
           }

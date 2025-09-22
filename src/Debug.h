@@ -39,11 +39,11 @@
             void setDrive(DebugLevel level);
             void setFunction(DebugLevel level);
 
-            void controller(DebugLevel level, String& s);
-            void light(DebugLevel level, String& s);
-            void sound(DebugLevel level, String& s);
-            void drive(DebugLevel level, String& s);
-            void function(DebugLevel level, String& s);
+            void controller(DebugLevel level, const String& s);
+            void light(DebugLevel level, const String& s);
+            void sound(DebugLevel level, const String& s);
+            void drive(DebugLevel level, const String& s);
+            void function(DebugLevel level, const String& s);
     };
 
 #endif

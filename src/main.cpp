@@ -14,6 +14,7 @@ void setup() {
 
   //Serial.begin(115200);
   PS4.begin();
+  Debug::getInstance().controller(DebugLevel::Info, "Debuglevel Controller");
   Serial.println("Ready.");
   Serial.printf("Battery Level : %d\n", PS4.Battery());
 }
