@@ -1,67 +1,119 @@
+/*
+ * File: ControllerWrapper.h
+ *
+ * Description:
+ *      Singleton-Klasse für Controller Verarbeiung - PS4.
+ *      Es wird nur eine Instanz für diese Klasse erzeugt und dann über den inkludierten Header weitergegeben
+ *
+ * Usage:
+ *      PS4Controller.h einbinden
+ *      In den Programmen mit ControllerWrapper::getInstance().### aufrufen
+ *
+ * Notes:
+ *      - Nutzt Meyers Singleton
+ *      - Debug-Level konfigurierbar via config.h
+ */
+
 #ifndef CONTROLLERWRAPPER_H
 #define CONTROLLERWRAPPER_H
 
 #include "PS4Controller.h"
 
 class ControllerWrapper {
-public:
-    typedef void (*Callback)();
-    typedef void (*TriggerCallback)(uint8_t value);
+    public:
+        // Zugriff auf die einzige Instanz
+        static ControllerWrapper& getInstance();
 
-    void begin();
-    
-    // D-Pad
-    void setOnDpadUp(Callback cb);
-    void setOnDpadDown(Callback cb);
-    void setOnDpadLeft(Callback cb);
-    void setOnDpadRight(Callback cb);
+        typedef void (*Callback)();
+        typedef void (*TriggerCallback)(uint8_t value);
 
-    // Buttons
-    void setOnCross(Callback cb);
-    void setOnCircle(Callback cb);
-    void setOnSquare(Callback cb);
-    void setOnTriangle(Callback cb);
-    void setOnL1(Callback cb);
-    void setOnR1(Callback cb);
 
-    // Sticks
-    void setOnLStickMove(Callback cb);
-    void setOnRStickMove(Callback cb);
+        void begin();
+        void setOnCross(Callback cb);
 
-    // Trigger
-    void setOnL2(TriggerCallback cb);
-    void setOnR2(TriggerCallback cb);
+        //Callback onCross = nullptr;
 
-    bool isConnected() const;
+    private:
+        // Konstruktor privat -> niemand kann von außen ein Objekt erzeugen
+        ControllerWrapper();
 
-private:
-    static ControllerWrapper* instance;
+        //Destruktor
+        ~ControllerWrapper();  
 
-    // D-Pad Callbacks
-    Callback onDpadUp = nullptr;
-    Callback onDpadDown = nullptr;
-    Callback onDpadLeft = nullptr;
-    Callback onDpadRight = nullptr;
+        // Kopieren und Zuweisung verbieten
+        ControllerWrapper(const ControllerWrapper&) = delete;
+        ControllerWrapper& operator=(const ControllerWrapper&) = delete;
 
-    // Buttons
-    Callback onCross = nullptr;
-    Callback onCircle = nullptr;
-    Callback onSquare = nullptr;
-    Callback onTriangle = nullptr;
-    Callback onL1 = nullptr;
-    Callback onR1 = nullptr;
+        static Callback onCross;
+        //static void notify();
+        static void notify();
+        static void onConnect();
+        static void onDisconnect();
 
-    // Sticks
-    Callback onLStickMove = nullptr;
-    Callback onRStickMove = nullptr;
+        //Serielle Debug Ausgaben aktiv
+        bool debugEnabled = false;
 
-    // Trigger
-    TriggerCallback onL2 = nullptr;
-    TriggerCallback onR2 = nullptr;
-
-    static void notify();
-    static void onConnect();
-    static void onDisconnect();
-};
-
+    };
 #endif
+
+// public:
+//     typedef void (*Callback)();
+//     typedef void (*TriggerCallback)(uint8_t value);
+
+//     void begin();
+    
+//     // D-Pad
+//     void setOnDpadUp(Callback cb);
+//     void setOnDpadDown(Callback cb);
+//     void setOnDpadLeft(Callback cb);
+//     void setOnDpadRight(Callback cb);
+
+//     // Buttons
+//     void setOnCross(Callback cb);
+//     void setOnCircle(Callback cb);
+//     void setOnSquare(Callback cb);
+//     void setOnTriangle(Callback cb);
+//     void setOnL1(Callback cb);
+//     void setOnR1(Callback cb);
+
+//     // Sticks
+//     void setOnLStickMove(Callback cb);
+//     void setOnRStickMove(Callback cb);
+
+//     // Trigger
+//     void setOnL2(TriggerCallback cb);
+//     void setOnR2(TriggerCallback cb);
+
+//     bool isConnected() const;
+
+// private:
+//     static ControllerWrapper* instance;
+
+//     // D-Pad Callbacks
+//     Callback onDpadUp = nullptr;
+//     Callback onDpadDown = nullptr;
+//     Callback onDpadLeft = nullptr;
+//     Callback onDpadRight = nullptr;
+
+//     // Buttons
+//     Callback onCross = nullptr;
+//     Callback onCircle = nullptr;
+//     Callback onSquare = nullptr;
+//     Callback onTriangle = nullptr;
+//     Callback onL1 = nullptr;
+//     Callback onR1 = nullptr;
+
+//     // Sticks
+//     Callback onLStickMove = nullptr;
+//     Callback onRStickMove = nullptr;
+
+//     // Trigger
+//     TriggerCallback onL2 = nullptr;
+//     TriggerCallback onR2 = nullptr;
+
+//     static void notify();
+//     static void onConnect();
+//     static void onDisconnect();
+// };
+
+// #endif

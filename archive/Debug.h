@@ -11,7 +11,7 @@
         Debug = 3
     };
 
-    // Klasse für das Anzeigen von Debugnachrichten, anhand von Debugleveln. Klasse wird einmalig erstellt und dann als instance an alle weitergegeben, 
+    // Klasse für das Anzeigen von Debugnachrichten, anhand von Debugleveln. Klasse wird einmalig erstellt und ist dann als instance aufrufbar, 
     // die den debug.h inkludiert haben.
     // Klasse kann überall mit getInstance und Methode verwendet werden: Debug::getInstance().setController(DebugLevel::Info);
     class Debug {
