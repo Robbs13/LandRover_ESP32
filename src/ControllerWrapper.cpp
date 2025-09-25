@@ -38,6 +38,20 @@
 
     // statische Memberdefinition
     ControllerWrapper::Callback ControllerWrapper::onCross = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onSquare = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onTriangle = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onCircle = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onDown = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onLeft = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onUp = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onRight = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onR1 = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onL1 = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onR3 = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onL3 = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onShare = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onPS = nullptr;
+    ControllerWrapper::Callback ControllerWrapper::onOptions = nullptr;
 
     void ControllerWrapper::begin(){
         //instance = this;
@@ -71,15 +85,97 @@
             if (PS4.event.button_down.cross && onCross) {
                 onCross();   // registrierten Callback ausführen
             }
+            if (PS4.event.button_down.square && onSquare) {
+                onSquare();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.triangle && onTriangle) {
+                onTriangle();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.circle && onCircle) {
+                onCircle();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.down && onDown) {
+                onDown();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.left && onLeft) {
+                onLeft();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.up && onUp) {
+                onUp();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.right && onRight) {
+                onRight();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.r1 && onR1) {
+                onR1();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.l1 && onL1) {
+                onL1();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.r3 && onR3) {
+                onR3();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.l3 && onL3) {
+                onL3();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.share && onShare) {
+                onShare();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.ps && onPS) {
+                onPS();   // registrierten Callback ausführen
+            }
+            if (PS4.event.button_down.options && onOptions) {
+                onOptions();   // registrierten Callback ausführen
+            }
         }
     }
 
-    //Setter
-    void ControllerWrapper::setOnCross(Callback cb) {
-    onCross = cb;
-}
-
-
+    //Methoden mit dem eine Callback Funktion verknüpft wird - zum Beispiel LichtAn
+    void ControllerWrapper::setEventDownButtonOnCross(Callback cb) {
+        onCross = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnSquare(Callback cb){
+        onSquare = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnTriangle(Callback cb){
+        onTriangle = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnCircle(Callback cb){
+        onCircle = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnDown(Callback cb){
+        onDown = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnLeft(Callback cb){
+        onLeft = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnUp(Callback cb){
+        onUp = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnRight(Callback cb){
+        onRight = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnR1(Callback cb){
+        onR1 = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnL1(Callback cb){
+        onL1 = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnR3(Callback cb){
+        onR3 = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnL3(Callback cb){
+        onL3 = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnShare(Callback cb){
+        onShare = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnPS(Callback cb){
+        onPS = cb;
+    }
+    void ControllerWrapper::setEventDownButtonOnOptions(Callback cb){
+        onOptions = cb;
+    }
 
 // ControllerWrapper* ControllerWrapper::instance = nullptr;
 // unsigned long lastTimeStamp = 0;

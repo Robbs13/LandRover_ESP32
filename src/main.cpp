@@ -3,12 +3,14 @@
 #include "config.h"
 #include "LightControl.h"
 #include "MapperFunction.h"
+#include "04_Controller.h"
 
 
 #include <PS4Controller.h>
 
 void setup() {
   Serial.begin(115200);
+  pinMode(2, OUTPUT);   // LED-Pin als Ausgang
   ControllerWrapper::getInstance().begin();
   MapperFunction::getInstance().begin();
   //LightControl::getInstance;

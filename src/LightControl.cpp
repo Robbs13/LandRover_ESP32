@@ -26,17 +26,67 @@
             Serial.println("HeadLight an");
             Serial.println("RearLight an");
             Serial.println("PosLight an");
-            headLightActive = true;
+            digitalWrite(2, HIGH); 
         }
         else{
             Serial.println("HeadLight aus");
             Serial.println("RearLight aus");
             Serial.println("PosLight aus");
-            headLightActive = false;
-        }
-        
+            digitalWrite(2, LOW); 
+        }    
+        headLightActive = !headLightActive;   
         
     }
+
+    void LightControl::headLightBeam(){
+        if (!headLightBeamActive){
+            Serial.println("Fernlicht an");  
+    
+        }
+        else{
+            Serial.println("Fernlicht aus");
+            
+        }
+        headLightBeamActive = !headLightBeamActive;
+    }
+
+    void LightControl::blinkLeft(){
+        if (!blinkLeftActive){
+            Serial.println("Blinken links an");  
+    
+        }
+        else{
+            Serial.println("Blinken links aus");
+            
+        }
+        blinkLeftActive = !blinkLeftActive;
+    }
+
+    void LightControl::blinkRight(){
+        if (!blinkRightActive){
+            Serial.println("Blinken rechts an");  
+    
+        }
+        else{
+            Serial.println("Blinken rechts aus");
+            
+        }
+        blinkRightActive = !blinkRightActive;
+    }
+
+    void LightControl::workLight(){
+        if (!workLightActive){
+            Serial.println("Arbeitsleuchte an");  
+    
+        }
+        else{
+            Serial.println("Arbeitsleuchte aus");
+            
+        }
+        workLightActive = !workLightActive;
+    }
+
+    
 
     /*void onCrossPressed() {
     light.on();   // Licht einschalten

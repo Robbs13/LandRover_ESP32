@@ -24,6 +24,10 @@ class LightControl {
 
         boolean headLightActive = false;
         boolean rearLightActive = false;
+        boolean headLightBeamActive = false;
+        boolean blinkRightActive = false;
+        boolean blinkLeftActive = false;
+        boolean workLightActive = false;
 
 
 
@@ -33,15 +37,21 @@ class LightControl {
 
         void begin();
         void lightOn();
+        void headLightBeam();
+        void rearLightBrake();
+        void blinkLeft();
+        void blinkRight();
+        void reverseLight();
+        void workLight();
 
-        // void onCrossPressed() {
-        //     lightOn();   // Licht einschalten
-        //     }
+
         
         // statische Callback-Methode
-        static void onCrossPressed() {
-            getInstance().lightOn();
-        }
+        static void onLightSwitch() {getInstance().lightOn();}
+        static void onBeamSwitch() {getInstance().headLightBeam();}
+        static void onBlinkRight() {getInstance().blinkRight();}
+        static void onBlinkLeft() {getInstance().blinkLeft();}
+        static void onWorkLight() {getInstance().workLight();}
 
 
 };

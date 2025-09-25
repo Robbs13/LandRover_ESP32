@@ -29,91 +29,63 @@ class ControllerWrapper {
 
 
         void begin();
-        void setOnCross(Callback cb);
+        void setEventDownButtonOnCross(Callback cb);
+        void setEventDownButtonOnSquare(Callback cb);
+        void setEventDownButtonOnTriangle(Callback cb);
+        void setEventDownButtonOnCircle(Callback cb);
+        void setEventDownButtonOnDown(Callback cb);
+        void setEventDownButtonOnLeft(Callback cb);
+        void setEventDownButtonOnUp(Callback cb);
+        void setEventDownButtonOnRight(Callback cb);
+        void setEventDownButtonOnR1(Callback cb);
+        void setEventDownButtonOnL1(Callback cb);
+        void setEventDownButtonOnR3(Callback cb);
+        void setEventDownButtonOnL3(Callback cb);
+        void setEventDownButtonOnShare(Callback cb);
+        void setEventDownButtonOnPS(Callback cb);
+        void setEventDownButtonOnOptions(Callback cb);
 
-        //Callback onCross = nullptr;
 
     private:
         // Konstruktor privat -> niemand kann von außen ein Objekt erzeugen
         ControllerWrapper();
 
-        //Destruktor
+        // Destruktor
         ~ControllerWrapper();  
 
         // Kopieren und Zuweisung verbieten
         ControllerWrapper(const ControllerWrapper&) = delete;
         ControllerWrapper& operator=(const ControllerWrapper&) = delete;
 
-        static Callback onCross;
-        //static void notify();
+        // Methoden
         static void notify();
         static void onConnect();
         static void onDisconnect();
+
+        // Digital Button Callback zum Übergeben an die Funktion
+        static Callback onCross;
+        static Callback onSquare;
+        static Callback onTriangle;
+        static Callback onCircle;
+        static Callback onDown;
+        static Callback onLeft;
+        static Callback onUp;
+        static Callback onRight;
+        static Callback onR1;
+        static Callback onL1;
+        static Callback onR3;
+        static Callback onL3;
+        static Callback onShare;
+        static Callback onPS;
+        static Callback onOptions;
+
+        // Analog Sticks Callback 
+           
+
+        
 
         //Serielle Debug Ausgaben aktiv
         bool debugEnabled = false;
 
     };
 #endif
-
-// public:
-//     typedef void (*Callback)();
-//     typedef void (*TriggerCallback)(uint8_t value);
-
-//     void begin();
-    
-//     // D-Pad
-//     void setOnDpadUp(Callback cb);
-//     void setOnDpadDown(Callback cb);
-//     void setOnDpadLeft(Callback cb);
-//     void setOnDpadRight(Callback cb);
-
-//     // Buttons
-//     void setOnCross(Callback cb);
-//     void setOnCircle(Callback cb);
-//     void setOnSquare(Callback cb);
-//     void setOnTriangle(Callback cb);
-//     void setOnL1(Callback cb);
-//     void setOnR1(Callback cb);
-
-//     // Sticks
-//     void setOnLStickMove(Callback cb);
-//     void setOnRStickMove(Callback cb);
-
-//     // Trigger
-//     void setOnL2(TriggerCallback cb);
-//     void setOnR2(TriggerCallback cb);
-
-//     bool isConnected() const;
-
-// private:
-//     static ControllerWrapper* instance;
-
-//     // D-Pad Callbacks
-//     Callback onDpadUp = nullptr;
-//     Callback onDpadDown = nullptr;
-//     Callback onDpadLeft = nullptr;
-//     Callback onDpadRight = nullptr;
-
-//     // Buttons
-//     Callback onCross = nullptr;
-//     Callback onCircle = nullptr;
-//     Callback onSquare = nullptr;
-//     Callback onTriangle = nullptr;
-//     Callback onL1 = nullptr;
-//     Callback onR1 = nullptr;
-
-//     // Sticks
-//     Callback onLStickMove = nullptr;
-//     Callback onRStickMove = nullptr;
-
-//     // Trigger
-//     TriggerCallback onL2 = nullptr;
-//     TriggerCallback onR2 = nullptr;
-
-//     static void notify();
-//     static void onConnect();
-//     static void onDisconnect();
-// };
-
-// #endif
