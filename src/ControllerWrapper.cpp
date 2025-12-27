@@ -71,7 +71,7 @@
 
     void ControllerWrapper::onConnect(){ 
         Serial.println("Controller verbunden.");
-        Serial.printf("Battery Level : %d\n", PS4.Battery()); 
+        Serial.printf("Battery Status : %d\n", PS4.data.status.battery);
         Serial.println("Ready...");
 
     }

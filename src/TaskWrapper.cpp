@@ -1,18 +1,66 @@
 #include "TaskWrapper.h"
 
 TaskWrapper::TaskWrapper(const char* name, uint16_t stackSize, UBaseType_t priority, BaseType_t core) {
-  xTaskCreatePinnedToCore(
-    taskEntry,   // Einstiegspunkt
-    name,        // Task-Name
-    stackSize,   // Stack-Größe
-    this,        // Parameter = Instanzzeiger
-    priority,    // Priorität
-    nullptr,     // Kein Handle gespeichert
-    core         // Core (0 oder 1)
-  );
+    xTaskCreatePinnedToCore(
+        taskEntry,
+        name,
+        stackSize,
+        this,     // Übergabe des "this"-Zeigers
+        priority,
+        &handle,
+        core
+    );
+}
+
+TaskWrapper::~TaskWrapper() {
+    stop();
+}
+
+void TaskWrapper::stop() {
+    if (handle) {
+        vTaskDelete(handle);
+        handle = nullptr;
+    }
+}
+
+void TaskWrapper::suspend() {
+    if (handle) {
+        vTaskSuspend(handle);
+    }
+}
+
+void TaskWrapper::resume() {
+    if (handle) {
+        vTaskResume(handle);
+    }
 }
 
 void TaskWrapper::taskEntry(void* param) {
-  TaskWrapper* instance = static_cast<TaskWrapper*>(param);
-  instance->run(); // Virtuelle Methode starten
+    TaskWrapper* instance = static_cast<TaskWrapper*>(param);
+    instance->run();  // virtuelle Methode aufrufen
+
+    // falls run() jemals beendet wird
+    vTaskDelete(nullptr);
 }
+
+
+
+
+// #include "TaskWrapper.h"
+
+// TaskWrapper::TaskWrapper(const char* name, uint16_t stackSize, UBaseType_t priority, BaseType_t core) {
+//   xTaskCreatePinnedToCore(
+//     taskEntry,   // Einstiegspunkt
+//     name,        // Task-Name
+//     stackSize,   // Stack-Größe
+//     this,        // Parameter = Instanzzeiger
+//     priority,    // Priorität
+//     nullptr,     // Kein Handle gespeichert
+//     core         // Core (0 oder 1)
+//   );
+// }
+
+// void TaskWrapper::taskEntry(void* param) {
+//   TaskWrapper* instance = static_cast<TaskWrapper*>(param);
+//   instance->run(); // Virtuelle Methode starten
+// }

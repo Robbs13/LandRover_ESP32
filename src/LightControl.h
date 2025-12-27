@@ -2,6 +2,7 @@
 #define LIGHTCONTROL_H
 
 #include <Arduino.h>
+#include "TaskQueueFunction.h"
 
 
 
@@ -29,6 +30,11 @@ class LightControl {
         boolean blinkLeftActive = false;
         boolean workLightActive = false;
 
+        TaskQueueFunction taskFunc;
+        int lightJobIdLeft;
+        int lightJobIdRight;
+        int blinkJob;
+
 
 
     public:
@@ -43,6 +49,22 @@ class LightControl {
         void blinkRight();
         void reverseLight();
         void workLight();
+
+        // Jobs die an einen FreeRtos Task übergeben werden
+        // void jobBlinkLeft();
+        // void jobBlinkRight();
+        void jobBlink();
+
+        bool stateBlinkLeft = false;
+        bool stateBlinkRight = false;
+        bool state = false;
+        unsigned long lastToggle = 0;
+        const unsigned long interval = 500; // 0,5s
+        bool stopRequestedBlinkLeft = false;
+        bool stopRequestedBlinkRight = false;
+         bool stopRequested = false;
+
+      
 
 
         

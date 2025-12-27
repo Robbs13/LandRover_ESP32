@@ -6,12 +6,39 @@
 class TaskWrapper {
 public:
   TaskWrapper(const char* name, uint16_t stackSize, UBaseType_t priority, BaseType_t core);
+  virtual ~TaskWrapper();
+
+  void suspend();   // Task pausieren
+  void resume();    // Task fortsetzen
+  void stop();      // Task endgültig löschen
 
 protected:
-  virtual void run() = 0; // Muss in Unterklasse implementiert werden
+  virtual void run() = 0; // Muss von Unterklasse implementiert werden
 
 private:
-  static void taskEntry(void* param); // Statische Einstiegspunkt-Funktion
+  static void taskEntry(void* param); // FreeRTOS Einstiegspunkt
+  TaskHandle_t handle = nullptr;      // Task-Handle
 };
 
 #endif
+
+
+
+
+// #ifndef TASKWRAPPER_H
+// #define TASKWRAPPER_H
+
+// #include <Arduino.h>
+
+// class TaskWrapper {
+// public:
+//   TaskWrapper(const char* name, uint16_t stackSize, UBaseType_t priority, BaseType_t core);
+
+// protected:
+//   virtual void run() = 0; // Muss in Unterklasse implementiert werden
+
+// private:
+//   static void taskEntry(void* param); // Statische Einstiegspunkt-Funktion
+// };
+
+// #endif
