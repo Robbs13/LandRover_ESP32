@@ -23,11 +23,11 @@ private:
     // Statischer „Trampolin“-Entry für FreeRTOS
     static void taskTrampoline(void *pvParameters);
 
-    // CRSF-Paket verarbeiten (Channel-Frame)
-    void handleCrsfPacket();
-    void checkCrsfPacket();
-    void failSafe();
-    void debug();
+    // Methoden für die Verarbeitung der RC Sender Daten
+    bool checkCrsfPacket();
+    void decodeCrsfPacket();
+    void failSafeActive(uint32_t now);
+    void debug(bool newFrame, uint32_t now);
 
 
 private:
@@ -38,5 +38,6 @@ private:
     uint32_t        _lastPacketMs;              // Zeitstempel des letzten gültigen Frames
     bool            _failsafeActive;            // aktueller Failsafe-Status
     uint8_t         _cycleTime;                 // Zykluszeit von dem Task
+    uint32_t        _lastDebugMs;               // Zeitstempel der letzten Debug-Ausgabe
     
 };

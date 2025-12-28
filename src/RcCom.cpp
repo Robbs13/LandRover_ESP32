@@ -8,7 +8,8 @@ RcCom::RcCom(int uartNum)
 : _taskHandle(NULL),
   _crsf(uartNum),
   _lastPacketMs(0),
-  _failsafeActive(true)    // beim Start: noch kein Link
+  _failsafeActive(true),    // beim Start: noch kein Link
+  _lastDebugMs(0)
 {
     // Kanäle auf Mittelstellung setzen
     for (int i = 0; i < CRSF_CHANNEL; ++i) {
@@ -49,14 +50,86 @@ void RcCom::taskTrampoline(void *pvParameters) {
 }
 
 
+
+// ---------------------------------------------------------
+//  Task Loop für den Ablauf 
+// ---------------------------------------------------------
+void RcCom::taskLoop() {
+    begin();  // UART Initialisierung
+
+    const TickType_t period = pdMS_TO_TICKS(_cycleTime);     // Zykluszeit der Taskschleife
+    TickType_t lastWake = xTaskGetTickCount();
+
+    //uint32_t lastDebugMs = 0;   // für gedrosselte Debug-Ausgabe
+
+    // Task Schleife
+    for (;;)
+    {
+        // UART / Check ob komplettes CRSF Packet zur Verfügung steht
+        bool newFrame = checkCrsfPacket(); 
+
+        // UART / CRSF Packete parsen und Channel Werte zuordnen
+        if (newFrame) {
+            decodeCrsfPacket();
+        }
+
+        // FailSafe aktiv bei fehlenden Packete innerhalb einer konfigurierten Zeit
+        uint32_t now = millis();
+        failSafeActive(now);
+
+        // Wenn Debug Schnittstelle aktiviert wurde, werden die einzelne Rohwerte der Kanäle ausgegeben
+        #if defined(DEBUG_RCCOM)
+            debug(newFrame, now);
+        #endif
+        
+
+        // Task läuft genau alle 5 ms
+        vTaskDelayUntil(&lastWake, period);
+    }
+}
+
+
+// ---------------------------------------------------------
+//  UART / Check ob komplettes CRSF Packet zur Verfügung steht
+// ---------------------------------------------------------
+bool RcCom::checkCrsfPacket()
+{
+    bool foundFrame = false;
+
+    while (_crsf.available() >= CRSF_PACKET_LEN)
+        {
+            // Sync auf Frame-Start (Adresse 0xC8)
+            if (_crsf.peek() != 0xC8) {
+                _crsf.read();
+                continue;   // falsches Byte → verwerfen & weitersuchen
+            }
+
+            // Startbyte korrekt - 24 Bytes einlesen
+            size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
+            if (n != CRSF_PACKET_LEN) {
+                break;  // unvollständiges Paket → Schleife verlassen,
+            }
+
+            // Optional: minimale Längenprüfung (CRSF length-Field grob prüfen)
+            // buffer[1] ist "Length" (Type + Payload + CRC)
+            if (_buffer[1] < 5 || _buffer[1] > 32) {
+                // Unplausible Länge → Paket ignorieren
+                continue;
+            }
+
+
+            foundFrame = true;
+        }
+        return foundFrame;
+}  
 // ---------------------------------------------------------
 //  UART / CRSF Packete parsen und Channel Werte zuordnen
 // ---------------------------------------------------------
-void RcCom::handleCrsfPacket()
+void RcCom::decodeCrsfPacket()
 {
     // Sanity-Check: RC-Channel-Frame?
     if (_buffer[2] != 0x16) {
-        Serial.println("CRSF falsches Packet. Ungleich 0x16...");
+        //Serial.println("CRSF falsches Packet. Ungleich 0x16...");
         return; // anderes Paket (z.B. Link-Stats, GPS, etc.)
     }
 
@@ -107,92 +180,57 @@ void RcCom::handleCrsfPacket()
 }
 
 // ---------------------------------------------------------
-//  Task Loop für den Ablauf 
+//  FailSafe aktiv bei fehlenden Packete innerhalb einer konfigurierten Zeit
 // ---------------------------------------------------------
-void RcCom::taskLoop() {
-    begin();  // UART Initialisierung
+void RcCom::failSafeActive(uint32_t now)
+{
+    if (_failsafeActive) {
+        // Bereits im Failsafe → nichts zu tun
+        return;
+    }
 
-    const TickType_t period = pdMS_TO_TICKS(_cycleTime);     // Zykluszeit der Taskschleife
-    TickType_t lastWake = xTaskGetTickCount();
+    // Wenn wir noch nie ein gültiges Paket hatten → nichts tun
+    if (_lastPacketMs == 0) {
+        return;
+    }
 
-    uint32_t lastDebugMs = 0;   // für gedrosselte Debug-Ausgabe
+    // Timeout überschritten?
+    if (now - _lastPacketMs <= RC_FAILSAFE_TIMEOUT_MS) {
+        return;
+    }
 
-    // Task Schleife
-    for (;;)
-    {
-        bool newFrame = false;  // wurde in diesem Zyklus ein neues Paket dekodiert?
+    // Ab hier: Failsafe aktivieren
+    _failsafeActive = true;
+    Serial.println("CRSF FAILSAFE: keine RC-Frames mehr");
 
-        // -------------------------------------------------
-        // 1) CRSF-Datenverarbeitung
-        // -------------------------------------------------
-        while (_crsf.available() >= CRSF_PACKET_LEN)
-        {
-            // Sync auf Frame-Start (Adresse 0xC8)
-            if (_crsf.peek() != 0xC8) {
-                _crsf.read();
-                continue;   // falsches Byte → verwerfen & weitersuchen
-            }
-
-            // Startbyte korrekt - 24 Bytes einlesen
-            size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
-            if (n != CRSF_PACKET_LEN) {
-                break;  // unvollständiges Paket → Schleife verlassen,
-            }
-
-            // Optional: minimale Längenprüfung (CRSF length-Field grob prüfen)
-            // buffer[1] ist "Length" (Type + Payload + CRC)
-            if (_buffer[1] < 5 || _buffer[1] > 32) {
-                // Unplausible Länge → Paket ignorieren
-                continue;
-            }
-
-            // Paket verarbeiten (Kanäle dekodieren + in Queue schreiben)
-            handleCrsfPacket();
-            
-            newFrame = true;
+    // Failsafe un Neutralwerte in Queue schieben
+    if (qRCCom != NULL) {
+        RcInputData fsFrame{};
+        fsFrame.timestampMs = now;
+        for (int i = 0; i < CRSF_CHANNEL; ++i) {
+            fsFrame.channel[i] = 992; // Mittelstellung / safe
         }
+        fsFrame.FailSafeRC = true;
+        xQueueOverwrite(qRCCom, &fsFrame);
+    }
+    
+}
 
-        // -------------------------------------------------
-        // 2) Failsafe-Überwachung
-        // -------------------------------------------------
-        uint32_t now = millis();
+// ---------------------------------------------------------
+//  Debug Schnittstelle. Gibt alle RC Sender Kanäle als Rohwerte aus
+// ---------------------------------------------------------
+void RcCom::debug(bool newFrame, uint32_t now)
+{
+    if (!newFrame)        return;          // keine neuen Daten
+    if (_failsafeActive)  return;          // im Failsafe → nicht spammen
+    if (now - _lastDebugMs < 100) return;  // nur alle 100ms
 
-        if (!_failsafeActive) {
-            // Wenn wir schon einmal ein gültiges Paket hatten
-            if (_lastPacketMs > 0 &&
-                (now - _lastPacketMs) > RC_FAILSAFE_TIMEOUT_MS)
-            {
-                _failsafeActive = true;
-                Serial.println("CRSF FAILSAFE: keine RC-Frames mehr");
+    _lastDebugMs = now;
 
-                // Optional: Failsafe-Neutralwerte in Queue schieben
-                if (qRCCom != NULL) {
-                    RcInputData fsFrame{};
-                    fsFrame.timestampMs = now;
-                    for (int i = 0; i < CRSF_CHANNEL; ++i) {
-                        fsFrame.channel[i] = 992; // Mittelstellung / safe
-                    }
-                    fsFrame.FailSafeRC = true;
-                    xQueueOverwrite(qRCCom, &fsFrame);
-                }
-            }
-        }
-
-        // -------------------------------------------------
-        // 3) Debug-Ausgabe NUR bei neuen Frames & ohne Failsafe
-        // -------------------------------------------------
-        if (newFrame && !_failsafeActive && (now - lastDebugMs >= 100)) {
-            lastDebugMs = now;
-
-            Serial.print("CRSF Channels: ");
-            for (int i = 0; i < (CRSF_CHANNEL); i++) {
-                Serial.print(_rcChannel[i]);
-                Serial.print(i < 15 ? ", " : "\n");
-            }
-        }
-
-        // Task läuft genau alle 5 ms
-        vTaskDelayUntil(&lastWake, period);
+    Serial.print("CRSF Channels: ");
+    for (int i = 0; i < CRSF_CHANNEL; i++) {
+        Serial.print(_rcChannel[i]);
+        Serial.print(i < (CRSF_CHANNEL - 1) ? ", " : "\n");
     }
 }
 
