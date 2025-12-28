@@ -2,23 +2,19 @@
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "Config.h" 
 #include <HardwareSerial.h>
 
-#define CRSF_BAUDRATE 420000
-#define CRSF_PACKET_LEN 24
-#define RC_FAILSAFE_TIMEOUT_MS 300     // nach 300ms ohne Frame => Failsafe
-
-
-//extern HardwareSerial crsf;
 
 class RcCom {
 public:
     explicit RcCom(int uartNum = 1);
 
-    void begin();  // z.B. UART initialisieren
+    // UART Initialisierung
+    void begin(); 
 
     // Startet den FreeRTOS-Task für diese Instanz
-    bool startTask(UBaseType_t priority, BaseType_t core);
+    bool startTask(UBaseType_t priority, BaseType_t core, uint8_t time);
 
 private:
     // Die eigentliche Task-Schleife (instanzbezogen)
@@ -29,14 +25,18 @@ private:
 
     // CRSF-Paket verarbeiten (Channel-Frame)
     void handleCrsfPacket();
+    void checkCrsfPacket();
+    void failSafe();
+    void debug();
+
 
 private:
-    TaskHandle_t _taskHandle;
-    uint8_t buffer[CRSF_PACKET_LEN];
-    int channel[16];
-    HardwareSerial crsf;
-
-    uint32_t _lastPacketMs;        // Zeitstempel des letzten gültigen Frames
-    bool     _failsafeActive;      // aktueller Failsafe-Status
+    TaskHandle_t    _taskHandle;
+    uint8_t         _buffer[CRSF_PACKET_LEN];   // Buffer für die CRSF Data
+    int             _rcChannel[CRSF_CHANNEL];     // Input der RC Eingaben aufgeteilt nach Channel
+    HardwareSerial  _crsf;                      // UART Verbindung
+    uint32_t        _lastPacketMs;              // Zeitstempel des letzten gültigen Frames
+    bool            _failsafeActive;            // aktueller Failsafe-Status
+    uint8_t         _cycleTime;                 // Zykluszeit von dem Task
     
 };

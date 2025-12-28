@@ -48,6 +48,22 @@
 
 
 // ---------------------------------------------------------
+//  Crossfire CRSF Verbindung zu RC Sender (Pocket):
+//  Hier stehen die benötigten Daten
+//  11 Bit: 0..2047 pro Kanal
+// ---------------------------------------------------------
+
+#define CRSF_BAUDRATE 420000
+#define CRSF_PACKET_LEN 24
+#define CRSF_CHANNEL 16                 // Anzahl der Kanäle
+#define RC_FAILSAFE_TIMEOUT_MS 300      // nach ..ms ohne Frame => Failsafe
+
+// ---------------------------------------------------------
+//  Aktivieren der Debug Ausgaben
+// ---------------------------------------------------------
+#define DEBUG_RCCOM
+
+// ---------------------------------------------------------
 //  Simulationsparameter Fahrzeug:
 //  Werte vom realen Fahrzeug
 // ---------------------------------------------------------
@@ -192,7 +208,8 @@ extern const VehicleSimConfig cfg_vehicleSim;
 
 //*** Eingabe Datenstruktur vom RC Sender
 struct RcInputData {
-    uint16_t channel[16];   // 11 Bit: 0..2047 pro Kanal
+    bool FailSafeRC;
+    uint16_t channel[CRSF_CHANNEL];   // Anzahl der Kanäle 
     uint32_t timestampMs;   // Timestamp der Nachricht
     };
 
