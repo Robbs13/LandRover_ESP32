@@ -42,7 +42,6 @@ bool RcCom::startTask(UBaseType_t priority, BaseType_t core, uint8_t time) {
     _cycleTime = time;
     return (res == pdPASS);
 }
-
 void RcCom::taskTrampoline(void *pvParameters) {
     // pvParameters ist der this-Pointer
     RcCom *self = static_cast<RcCom*>(pvParameters);
@@ -60,11 +59,15 @@ void RcCom::taskLoop() {
     const TickType_t period = pdMS_TO_TICKS(_cycleTime);     // Zykluszeit der Taskschleife
     TickType_t lastWake = xTaskGetTickCount();
 
-    //uint32_t lastDebugMs = 0;   // für gedrosselte Debug-Ausgabe
+    // Queue wird mit Failsafe Daten befüllt, bis erste gültige Nachricht empfangen wird
+    _lastFailsafeSend = 0;
 
     // Task Schleife
     for (;;)
-    {
+    {   
+        // Keine neu-geparsten RC Daten
+        _newChannelData = false;
+
         // UART / Check ob komplettes CRSF Packet zur Verfügung steht
         bool newFrame = checkCrsfPacket(); 
 
@@ -74,12 +77,15 @@ void RcCom::taskLoop() {
         }
 
         // FailSafe aktiv bei fehlenden Packete innerhalb einer konfigurierten Zeit
-        uint32_t now = millis();
-        failSafeActive(now);
+        _now = millis();
+        failSafeActive();
+
+        // Channel Daten in die RCInputData Queue ablegen
+        publishRcDataQueue();
 
         // Wenn Debug Schnittstelle aktiviert wurde, werden die einzelne Rohwerte der Kanäle ausgegeben
         #if defined(DEBUG_RCCOM)
-            debug(newFrame, now);
+            debug(newFrame);
         #endif
         
 
@@ -97,31 +103,32 @@ bool RcCom::checkCrsfPacket()
     bool foundFrame = false;
 
     while (_crsf.available() >= CRSF_PACKET_LEN)
-        {
-            // Sync auf Frame-Start (Adresse 0xC8)
-            if (_crsf.peek() != 0xC8) {
-                _crsf.read();
-                continue;   // falsches Byte → verwerfen & weitersuchen
-            }
-
-            // Startbyte korrekt - 24 Bytes einlesen
-            size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
-            if (n != CRSF_PACKET_LEN) {
-                break;  // unvollständiges Paket → Schleife verlassen,
-            }
-
-            // Optional: minimale Längenprüfung (CRSF length-Field grob prüfen)
-            // buffer[1] ist "Length" (Type + Payload + CRC)
-            if (_buffer[1] < 5 || _buffer[1] > 32) {
-                // Unplausible Länge → Paket ignorieren
-                continue;
-            }
-
-
-            foundFrame = true;
+    {
+        // Sync auf Frame-Start (Adresse 0xC8)
+        if (_crsf.peek() != 0xC8) {
+            _crsf.read();
+            continue;   // falsches Byte → verwerfen & weitersuchen
         }
-        return foundFrame;
+
+        // Startbyte korrekt - 24 Bytes einlesen
+        size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
+        if (n != CRSF_PACKET_LEN) {
+            break;  // unvollständiges Paket → Schleife verlassen,
+        }
+
+        // Optional: minimale Längenprüfung (CRSF length-Field grob prüfen)
+        // buffer[1] ist "Length" (Type + Payload + CRC)
+        if (_buffer[1] < 5 || _buffer[1] > 32) {
+            // Unplausible Länge → Paket ignorieren
+            continue;
+        }
+
+
+        foundFrame = true;
+    }
+    return foundFrame;
 }  
+
 // ---------------------------------------------------------
 //  UART / CRSF Packete parsen und Channel Werte zuordnen
 // ---------------------------------------------------------
@@ -165,67 +172,76 @@ void RcCom::decodeCrsfPacket()
         Serial.println("CRSF OK: Link wiederhergestellt");
     }
 
-    // In Queue schreiben (latest-only)
-    if (qRCCom != NULL) {
-        RcInputData frame{};
-        frame.timestampMs = _lastPacketMs;
-        for (int i = 0; i < CRSF_CHANNEL; ++i) {
-            frame.channel[i] = _rcChannel[i];
-        }
-        frame.FailSafeRC = false;
-        xQueueOverwrite(qRCCom, &frame);
-    }
-
-    // Debug-Ausgabe passiert in taskLoop(), nicht hier
+    _newChannelData = true;
 }
 
 // ---------------------------------------------------------
 //  FailSafe aktiv bei fehlenden Packete innerhalb einer konfigurierten Zeit
 // ---------------------------------------------------------
-void RcCom::failSafeActive(uint32_t now)
+void RcCom::failSafeActive()
 {
-    if (_failsafeActive) {
-        // Bereits im Failsafe → nichts zu tun
-        return;
-    }
+    // Bereits im Failsafe -> nichts zu tun
+    if (_failsafeActive) return;
 
-    // Wenn wir noch nie ein gültiges Paket hatten → nichts tun
-    if (_lastPacketMs == 0) {
-        return;
-    }
-
-    // Timeout überschritten?
-    if (now - _lastPacketMs <= RC_FAILSAFE_TIMEOUT_MS) {
-        return;
-    }
+    // Keine neuen Packete, aber noch innerhalb Timeout -> nichts tun
+    if (_now - _lastPacketMs <= RC_FAILSAFE_TIMEOUT_MS) return;
 
     // Ab hier: Failsafe aktivieren
     _failsafeActive = true;
-    Serial.println("CRSF FAILSAFE: keine RC-Frames mehr");
-
-    // Failsafe un Neutralwerte in Queue schieben
-    if (qRCCom != NULL) {
-        RcInputData fsFrame{};
-        fsFrame.timestampMs = now;
-        for (int i = 0; i < CRSF_CHANNEL; ++i) {
-            fsFrame.channel[i] = 992; // Mittelstellung / safe
-        }
-        fsFrame.FailSafeRC = true;
-        xQueueOverwrite(qRCCom, &fsFrame);
-    }
+    Serial.println("CRSF FAILSAFE: Keine RC-Frames mehr");
     
 }
 
 // ---------------------------------------------------------
 //  Debug Schnittstelle. Gibt alle RC Sender Kanäle als Rohwerte aus
 // ---------------------------------------------------------
-void RcCom::debug(bool newFrame, uint32_t now)
+void RcCom::publishRcDataQueue()
+{
+    if (qRCCom != NULL) {
+        // Neu geparste Channel Daten werden an die Queue übergeben
+        if(_newChannelData){            
+            RcInputData frame{};
+            frame.timestampMs = _lastPacketMs;
+            for (int i = 0; i < CRSF_CHANNEL; ++i) {
+                frame.channel[i] = _rcChannel[i];
+            }
+            frame.FailSafeRC = _failsafeActive;
+            xQueueOverwrite(qRCCom, &frame);
+
+            _lastFailsafeSend = 0;
+            //Serial.println("CRSF Data: New Data in Queue");               
+        }
+
+        if(_failsafeActive){
+            // Sobald Failsafe, Nachricht schicken - Dannach alle RC_FAILSAFE_CYCLE in ms
+            if((_now - _lastFailsafeSend  >= RC_FAILSAFE_CYCLE) || _lastFailsafeSend == 0){
+            
+                RcInputData fsFrame{};
+                fsFrame.timestampMs = _now;
+                for (int i = 0; i < CRSF_CHANNEL; ++i) {
+                    fsFrame.channel[i] = 992; // Mittelstellung / safe
+                }
+                fsFrame.FailSafeRC = _failsafeActive;
+                xQueueOverwrite(qRCCom, &fsFrame);
+
+                _lastFailsafeSend = _now;
+                //Serial.println("CRSF FAILSAFE: Nachricht in Queue");
+                
+            }
+        }    
+    }
+}
+
+// ---------------------------------------------------------
+//  Debug Schnittstelle. Gibt alle RC Sender Kanäle als Rohwerte aus
+// ---------------------------------------------------------
+void RcCom::debug(bool newFrame)
 {
     if (!newFrame)        return;          // keine neuen Daten
     if (_failsafeActive)  return;          // im Failsafe → nicht spammen
-    if (now - _lastDebugMs < 100) return;  // nur alle 100ms
+    if (_now - _lastDebugMs < 100) return;  // nur alle 100ms
 
-    _lastDebugMs = now;
+    _lastDebugMs = _now;
 
     Serial.print("CRSF Channels: ");
     for (int i = 0; i < CRSF_CHANNEL; i++) {

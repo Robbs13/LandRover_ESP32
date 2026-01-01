@@ -26,18 +26,22 @@ private:
     // Methoden für die Verarbeitung der RC Sender Daten
     bool checkCrsfPacket();
     void decodeCrsfPacket();
-    void failSafeActive(uint32_t now);
-    void debug(bool newFrame, uint32_t now);
+    void failSafeActive();
+    void publishRcDataQueue();
+    void debug(bool newFrame);
 
 
 private:
     TaskHandle_t    _taskHandle;
     uint8_t         _buffer[CRSF_PACKET_LEN];   // Buffer für die CRSF Data
-    int             _rcChannel[CRSF_CHANNEL];     // Input der RC Eingaben aufgeteilt nach Channel
+    int             _rcChannel[CRSF_CHANNEL];   // Input der RC Eingaben aufgeteilt nach Channel
     HardwareSerial  _crsf;                      // UART Verbindung
     uint32_t        _lastPacketMs;              // Zeitstempel des letzten gültigen Frames
     bool            _failsafeActive;            // aktueller Failsafe-Status
     uint8_t         _cycleTime;                 // Zykluszeit von dem Task
     uint32_t        _lastDebugMs;               // Zeitstempel der letzten Debug-Ausgabe
+    bool            _newChannelData;            // Geparste RC Daten, bereit für Queue
+    uint32_t        _now;                       // Aktuelle Zeit
+    uint32_t        _lastFailsafeSend;           // Zeitstempel des letzten gültigen Frames
     
 };

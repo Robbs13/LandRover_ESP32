@@ -57,6 +57,7 @@
 #define CRSF_PACKET_LEN 24
 #define CRSF_CHANNEL 16                 // Anzahl der Kanäle
 #define RC_FAILSAFE_TIMEOUT_MS 300      // nach ..ms ohne Frame => Failsafe
+#define RC_FAILSAFE_CYCLE 1000      // nach ..ms ohne Frame => Failsafe
 
 // ---------------------------------------------------------
 //  Aktivieren der Debug Ausgaben
