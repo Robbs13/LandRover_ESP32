@@ -1,10 +1,12 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "RcCom.h"       // Klasse RcCom
+#include "CtrlSim.h"
 
 
 
 RcCom g_rcCom(1);
+CtrlSim g_ctrlSim(0);
 
 void setup() {
 // Debug-Serielle (optional)
@@ -14,10 +16,10 @@ void setup() {
 
 
     // Tasks starten – Logik steckt in den Klassen
-    g_rcCom.startTask(3, 0, 5);        // prio 3, Core 0, 
-    // g_sensorCom.startTask(3, 0);    // prio 3, Core 0
-    // g_controlSim.startTask(4, 1);   // prio 4, Core 1 (Regelung)
-    // g_actuator.startTask(2, 1);     // prio 2, Core 1
+    g_rcCom.startTask(3, 0, cfg_taskTimings.rcTaskCycleMs);        // prio 3, Core 0, 
+    g_ctrlSim.startTask(4, 1, cfg_taskTimings.ctrlTaskCycleMs);   // prio 4, Core 1 (Regelung)
+    // g_sensorCom.startTask(3, 0, cfg_taskTimings.sensorTaskCycleMs);    // prio 3, Core 0
+    // g_actuator.startTask(2, 1, cfg_taskTimings.actuatorTaskCycleMs);     // prio 2, Core 1
     Serial.println("System ready");
 }
 

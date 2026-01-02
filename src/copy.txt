@@ -1,0 +1,40 @@
+#define FUNC_HEADLIGHTS_BEAM
+//  #define FUNC_REARLIGHTS
+#define FUNC_REARLIGHTS_BRAKE
+//  #define FUNC_BRAKELIGHTS
+#define FUNC_REVERSELIGHT
+#define FUNC_BLINK
+#define FUNC_POSLIGHTS
+#define FUNC_WORKLIGHT
+#define FUNC_TACHOLIGHT
+#define FUNC_PIPEFIRE
+
+//*** Fahr Funktionen
+#define FUNC_THROTTLE_SIM
+#define FUNC_STEERING_SIM
+#define FUNC_TRANSMISSION
+
+//*** Weitere Funktionen
+#define FUNC_WINCH
+#define FUNC_SHAKER
+#define FUNC_SOUND
+
+//*** Control Datenstruktur von Sim zu Act
+struct ControlCommandData {
+    bool        blinkenRightAct;
+    bool        blinkenLeftAct;
+    bool        lightHeadAct;
+    bool        lightBeamAct;
+    bool        lightRearAct;
+    bool        lightBrakeAct;
+    bool        lightReverseAct;
+    bool        lightPosAct;
+    bool        lightWorkAct;
+    bool        lightTachoAct;
+    uint16_t    ctrlDrive;
+    uint16_t    ctrlSteer;
+    uint16_t    ctrlTransmission;
+    uint16_t    ctrlWinch;
+    uint16_t    ctrlShaker;
+    uint16_t    ctrlSound;
+};

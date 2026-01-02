@@ -2,39 +2,85 @@
 
 
 // ---------------------------------------------------------
-//  Simulationsparameter Fahrzeug:
-//  Werte vom realen Fahrzeug
+//  Konfiguration: Fahrzeug
 //
 //  *** Hier müssen Anpassungen gemacht werden ***
 // ---------------------------------------------------------
 
-const VehicleSimConfig cfg_vehicleSim = {
-    .massKg         = 999.0f,   // Fahrzeugmasse in kg
-    .wheelBaseX     = 99.0f,    // Spurweite in m
-    .wheelBaseY     = 199.0f,   // Spurstand in m
-    .maxSpeed       = 99.0f,    // theoretische Max-Speed in kmh
-    .torqueCurve    = 99.0f,    // Motorleistung (vereinfacht) nun... noch keine Ahnung
-    .dragCoeff      = 0.9f,     // 0..1, Luft-/Rollwiderstand
-    .tireGrip       = 1.0f,     // 0..1, Grip-Faktor
-};
+#if defined(LANDROVER_TOWTRUCK)
+
+    const VehicleFeatureConfig cfg_vehicleFeature = {
+        .enableLights = true,
+        .enableHeadBeam = true,
+        .enableRearBrake = true,
+        .enableReverse = true,
+        .enableBlink = true,
+        .enableSide = true,  
+        .enableWork = true,
+        .enableCabine = true,
+        .enablePipeFire = true,
+
+        .enableDrive = true,
+        .enableSteering = true,
+        .enableGear = true,
+        .enableWinch = true,
+        .enableShaker = true,
+        .enableSound = true,
+
+        .enableUndefined = false,
+    };
+
+    // const VehicleControlFeatureConfig cfg_vehicleControlFeature = {
+    //     .enableDrive = true,
+    //     .enableSteering = true,
+    //     .enableGear = true,
+    //     .enableWinch = true,
+    //     .enableShaker = true,
+    //     .enableSound = true,
+    // };
+
+    const VehicleSimConfig cfg_vehicleSim = {
+        .massKg = 1.0,
+        .wheelBaseX = 1.0,
+        .wheelBaseY = 1.0,
+        .maxSpeed = 1.0,
+        .torqueCurve = 1.0,
+        .dragCoeff = 1.0,
+        .tireGrip = 1.0,
+    };
+#endif
+
+// ---------------------------------------------------------
+//  Konfiguration: Sendeformat
+//
+//  *** Hier müssen Anpassungen gemacht werden ***
+// ---------------------------------------------------------
+// #if defined(CRSF)
+//     const RcComConfig cfg_RcCom = {
+//         .RC_FAILSAFE_TIMEOUT_MS = 300,     // nach ..ms ohne Frame => Failsafe
+//         .RC_FAILSAFE_CYCLE = 1000,      // nach ..ms ohne Frame => Failsafe
+//     };
+// #endif
+
+
 
 
 // ---------------------------------------------------------
-//  IO-Belegung ESP32:
-//  Zuordnung der einzelnen Input/Output
+//  Konfiguration:  ESP Controller
+//
+//  *** Hier müssen Anpassungen gemacht werden ***
 // ---------------------------------------------------------
-
 
 #if defined(ESP32AZDEVKITCV4)
-const GpioConfig cfg_ioPins = {
+const GpioConfig cfg_GPIO = {
     // Antriebe
     .pinMotorPwm        = 14,    // PWM - Antriebsmotor
     .pinSteerPwm        = 13,    // PWM - Servo Lenkung
-    .pinTransmissionPwm = 12,    // PWM - Servo Transmission
+    .pinGearPwm         = 12,    // PWM - Servo Transmission
 
     // Sonstige Aktoren
     .pinWinchPwm        = 27,    // PWM - Servo Winde
-    .pinShakerPwm        = 23,    // PWM - Servo Shaker
+    .pinShakerPwm       = 23,    // PWM - Servo Shaker
 
     // Sound
     .pinSoundDAC1       = 25,    // DAC - Sound Kanal 1
@@ -42,34 +88,32 @@ const GpioConfig cfg_ioPins = {
 
     // Licht
     .pinHeadLightPwm    = 3,     // PWM - Licht Scheinwerfer
-    // int pinBeamLightPwm;    // PWM - Licht Fernlicht
+    .pinBeamLightPwm    = 99,    // PWM - Licht Fernlicht
     .pinRearLightPwm    = 4,     // PWM - Licht Rücklicht
-    // int pinBrakeLightPwm;   // PWM - Licht Bremslicht
+    .pinBrakeLightPwm   = 99,    // PWM - Licht Bremslicht
     .pinBlinkLeft       = 15,    // PWM - Blinken Links
     .pinBlinkRight      = 5,     // PWM - Blinken Rechts
     .pinReverseLight    = 2,     // Dig - Licht Rückfahr
     .pinPositionLight   = 18,    // Dig - Licht Position
-    .pinWorkLight       = 0,    // Dig - Licht Arbeitslicht
+    .pinWorkLight       = 0,     // Dig - Licht Arbeitslicht
     .pinTachoInt        = 19,    // Dig - Licht Tacho Innenraum
-    // int pinPipeFire;        // PWM - Auspuff
+    .pinPipeFire        = 99,    // PWM - Auspuff
 
     // Sensoren
-    .pinBatAdc          = 00,    // Alg - Batteriespannung
-    .pinSpeedSensorFL   = 00,    // Dig - Raddrehzahl
-    .pinSpeedSensorFR   = 00,    // Dig - Raddrehzahl
-    .pinSpeedSensorRL   = 00,   // Dig - Raddrehzahl
-    .pinSpeedSensorRR   = 00,    // Dig - Raddrehzahl
+    .pinBatAdc          = 99,    // Alg - Batteriespannung
+    .pinSpeedSensorFL   = 99,    // Dig - Raddrehzahl
+    .pinSpeedSensorFR   = 99,    // Dig - Raddrehzahl
+    .pinSpeedSensorRL   = 99,    // Dig - Raddrehzahl
+    .pinSpeedSensorRR   = 99,    // Dig - Raddrehzahl
 
     // RC Communication  / UART
-    .pinXlrsRx      = 17,    // UART - Receive RC Controller
-    .pinXlrsTx      = 16,    // UART - Transmit RC Controller
+    .pinCRSFRx          = 17,    // UART - Receive RC Controller
+    .pinCRSFTx          = 16,    // UART - Transmit RC Controller
 
     // Gyro / I2C
-    .pinI2CRx       = 22,    // I2C - Receive Gyro
-    .pinI2CTx       = 21,    // I2C - Transmit Gyro
-
-};
-
+    .pinI2CRx           = 22,    // I2C - Receive Gyro
+    .pinI2CTx           = 21,    // I2C - Transmit Gyro
+    };
 #endif
 
 // ---------------------------------------------------------
@@ -92,26 +136,54 @@ void initQueues() {
 }
 
 // ---------------------------------------------------------
-//  RC-Channel-Konfiguration
+//  Task Einstellungen:
+//  - Timing in Millisecond
+//
+//  *** Hier müssen Anpassungen gemacht werden ***
 // ---------------------------------------------------------
-
-const RcChannelConfig g_rcChannels[] = {
-    // channelId, RcInputType,          min,   max,   center
-    { 1, RcInputType::Analog,          1000,  2000,  1500 }, // Gas
-    { 2, RcInputType::Analog,          1000,  2000,  1500 }, // Lenkung
-    { 3, RcInputType::Switch3,         1000,  2000,  1500 }, // Fahrmodus (3-stufig)
-    { 4, RcInputType::Taster,          1000,  2000,  1500 }, // Winde
-    { 5, RcInputType::Switch2,         1000,  2000,  1000 }, // Licht an/aus
-    { 6, RcInputType::Switch2,         1000,  2000,  1000 }, // Getriebe High/Low
+const TaskTimingConfig cfg_taskTimings = {
+    .rcTaskCycleMs       = 5,
+    .ctrlTaskCycleMs     = 10,
+    .sensorTaskCycleMs   = 10,
+    .actuatorTaskCycleMs = 10
 };
 
+// ---------------------------------------------------------
+//  RC Kanal Einstellungen:
+//  - zentrale Mappings Tabelle
+//
+//  *** Hier müssen Anpassungen gemacht werden ***
+// ---------------------------------------------------------
+
+#if defined(POCKET)
+    const RcChannelConfig cfg_rcChannels[] = {
+        // channelId, RcInputType,    min,     max,   cnt, Funktion
+        { 1, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},  
+        { 2, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},    
+        { 3, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},   
+        { 4, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},     
+        { 5, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
+        { 6, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
+        { 7, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
+        { 8, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
+        { 9, RcInputType::Momentary,    RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {10, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {11, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {12, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {13, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {14, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {15, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+        {16, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE}
+    };
+#endif
+
 const size_t g_rcChannelCount =
-    sizeof(g_rcChannels) / sizeof(g_rcChannels[0]);
+    sizeof(cfg_rcChannels) / sizeof(cfg_rcChannels[0]);
 
 const RcChannelConfig* getRcChannelConfig(uint8_t channelId) {
     for (size_t i = 0; i < g_rcChannelCount; ++i) {
-        if (g_rcChannels[i].channelId == channelId) {
-            return &g_rcChannels[i];
+        if (cfg_rcChannels[i].channelId == channelId) {
+            return &cfg_rcChannels[i];
         }
     }
     return nullptr;

@@ -33,8 +33,8 @@ private:
 
 private:
     TaskHandle_t    _taskHandle;
-    uint8_t         _buffer[CRSF_PACKET_LEN];   // Buffer für die CRSF Data
-    int             _rcChannel[CRSF_CHANNEL];   // Input der RC Eingaben aufgeteilt nach Channel
+    uint8_t         _buffer[CRSF_CHANNEL];      // Buffer für die CRSF Data
+    uint16_t        _rcChannel[CRSF_CHANNEL];   // Input der RC Eingaben aufgeteilt nach Channel
     HardwareSerial  _crsf;                      // UART Verbindung
     uint32_t        _lastPacketMs;              // Zeitstempel des letzten gültigen Frames
     bool            _failsafeActive;            // aktueller Failsafe-Status

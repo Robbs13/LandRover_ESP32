@@ -9,11 +9,12 @@ RcCom::RcCom(int uartNum)
   _crsf(uartNum),
   _lastPacketMs(0),
   _failsafeActive(true),    // beim Start: noch kein Link
-  _lastDebugMs(0)
+  _lastDebugMs(0),
+  _lastFailsafeSend(0)
 {
     // Kanäle auf Mittelstellung setzen
     for (int i = 0; i < CRSF_CHANNEL; ++i) {
-        _rcChannel[i] = 992;
+        _rcChannel[i] = RC_MIDDLE;
     }
 }
 
@@ -23,13 +24,15 @@ RcCom::RcCom(int uartNum)
 void RcCom::begin() {
     // Pins ggf. aus Config nehmen: g_ioPins.pinXlrsRx / pinXlrsTx
     _crsf.begin(CRSF_BAUDRATE, SERIAL_8N1, 16, 17); 
-    Serial.println("CRSF Begin...");
+    Serial.println("RCCOM: CRSF Begin...");
 }
 
 // ---------------------------------------------------------
 //  Task erstellen
 // ---------------------------------------------------------
 bool RcCom::startTask(UBaseType_t priority, BaseType_t core, uint8_t time) {
+    _cycleTime = time;
+    
     BaseType_t res = xTaskCreatePinnedToCore(
         RcCom::taskTrampoline,  // statische Entry-Funktion
         "RCCom",                // Name (für Debug)
@@ -39,7 +42,6 @@ bool RcCom::startTask(UBaseType_t priority, BaseType_t core, uint8_t time) {
         &_taskHandle,           // Task-Handle
         core                    // Core 0 oder 1
     );
-    _cycleTime = time;
     return (res == pdPASS);
 }
 void RcCom::taskTrampoline(void *pvParameters) {
@@ -60,7 +62,7 @@ void RcCom::taskLoop() {
     TickType_t lastWake = xTaskGetTickCount();
 
     // Queue wird mit Failsafe Daten befüllt, bis erste gültige Nachricht empfangen wird
-    _lastFailsafeSend = 0;
+    //_lastFailsafeSend = 0;
 
     // Task Schleife
     for (;;)
@@ -72,12 +74,12 @@ void RcCom::taskLoop() {
         bool newFrame = checkCrsfPacket(); 
 
         // UART / CRSF Packete parsen und Channel Werte zuordnen
-        if (newFrame) {
-            decodeCrsfPacket();
-        }
+        if (newFrame) decodeCrsfPacket();
+        
+        // Aktuelle Zeit speichern
+        _now = millis();
 
         // FailSafe aktiv bei fehlenden Packete innerhalb einer konfigurierten Zeit
-        _now = millis();
         failSafeActive();
 
         // Channel Daten in die RCInputData Queue ablegen
@@ -136,13 +138,13 @@ void RcCom::decodeCrsfPacket()
 {
     // Sanity-Check: RC-Channel-Frame?
     if (_buffer[2] != 0x16) {
-        //Serial.println("CRSF falsches Packet. Ungleich 0x16...");
+        //Serial.println("RCCOM: CRSF falsches Packet. Ungleich 0x16...");
         return; // anderes Paket (z.B. Link-Stats, GPS, etc.)
     }
 
     // Failsafe: erst mal alle Kanäle auf Mittelstellung setzen
     for (int i = 0; i < CRSF_CHANNEL; i++) {
-        _rcChannel[i] = 992;
+        _rcChannel[i] = RC_MIDDLE;
     }
 
     uint32_t bitBuffer = 0;
@@ -169,7 +171,7 @@ void RcCom::decodeCrsfPacket()
     // Falls Failsafe bisher aktiv war: Link ist wieder da
     if (_failsafeActive) {
         _failsafeActive = false;
-        Serial.println("CRSF OK: Link wiederhergestellt");
+        Serial.println("RCCOM: CRSF OK - Link wiederhergestellt");
     }
 
     _newChannelData = true;
@@ -188,7 +190,7 @@ void RcCom::failSafeActive()
 
     // Ab hier: Failsafe aktivieren
     _failsafeActive = true;
-    Serial.println("CRSF FAILSAFE: Keine RC-Frames mehr");
+    Serial.println("RCCOM: CRSF FAILSAFE - Keine RC-Frames mehr");
     
 }
 
@@ -209,7 +211,7 @@ void RcCom::publishRcDataQueue()
             xQueueOverwrite(qRCCom, &frame);
 
             _lastFailsafeSend = 0;
-            //Serial.println("CRSF Data: New Data in Queue");               
+            //Serial.println("RCCOM: CRSF Data - New Data in Queue");               
         }
 
         if(_failsafeActive){
@@ -225,7 +227,7 @@ void RcCom::publishRcDataQueue()
                 xQueueOverwrite(qRCCom, &fsFrame);
 
                 _lastFailsafeSend = _now;
-                //Serial.println("CRSF FAILSAFE: Nachricht in Queue");
+                //Serial.println("RCCOM: CRSF FAILSAFE - Nachricht in Queue");
                 
             }
         }    
@@ -243,11 +245,22 @@ void RcCom::debug(bool newFrame)
 
     _lastDebugMs = _now;
 
-    Serial.print("CRSF Channels: ");
+    Serial.print("RCCOM: CRSF Channels: ");
     for (int i = 0; i < CRSF_CHANNEL; i++) {
         Serial.print(_rcChannel[i]);
         Serial.print(i < (CRSF_CHANNEL - 1) ? ", " : "\n");
     }
+}
+
+// ---------------------------------------------------------
+//  Hilfsrechnung: Übersetzt die CRSF Raw Daten in PWM übliche 1000 - 2000
+// ---------------------------------------------------------
+static inline uint16_t crsfToRc(uint16_t v)
+{
+    if (v < 172)  v = 172;
+    if (v > 1811) v = 1811;
+
+    return 1000 + (uint32_t)(v - 172) * 1000 / (1811 - 172);
 }
 
 
