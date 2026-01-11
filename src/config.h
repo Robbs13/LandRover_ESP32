@@ -17,14 +17,19 @@
 // ---------------------------------------------------------
 
 #define LANDROVER_TOWTRUCK
-#define CRSF
+#define CRSF_SERIAL
 #define POCKET
 #define ESP32AZDEVKITCV4    //ESP32: https://www.az-delivery.de/products/esp-32-dev-kit-c-v4
 
 // ---------------------------------------------------------
 //  Konfiguration: Debug
 // ---------------------------------------------------------
-#define DEBUG_RCCOM
+#if defined(CRSF_SERIAL)
+    //#define DEBUG_CRSF_IN
+    #define DEBUG_CRSF_OUT
+#endif
+
+//#define DEBUG_RCCOM
 #define DEBUG_CTRLSIM
 
 // ---------------------------------------------------------
@@ -53,6 +58,28 @@
         bool enableUndefined;
     };
     extern const VehicleFeatureConfig cfg_vehicleFeature;
+
+    // ---------------------------------------------------------
+    //  Aktive Funktionen
+    // ---------------------------------------------------------
+    enum class FunctionList : uint8_t {
+        blinkenRightAct =   1,
+        blinkenLeftAct  =   2,
+        lightHeadAct    =   3,
+        lightBeamAct    =   4,
+        lightRearAct    =   5,
+        lightBrakeAct   =   6,
+        lightReverseAct =   7,
+        lightPosAct     =   8,
+        lightWorkAct    =   9,
+        lightTachoAct   =   10,
+        ctrlDrive       =   11,
+        ctrlSteer       =   12,
+        ctrlTransmission=   13,    
+        ctrlWinch       =   14,
+        ctrlShaker      =   15,
+        ctrlSound       =   16,
+    };
     // extern const VehicleLightFeatureConfig cfg_vehicleLightFeature;
 
     // // Struct für die möglichen Controlfunktionen
@@ -82,26 +109,9 @@
 // ---------------------------------------------------------
 //  Konfiguration: Sendeformat
 // ---------------------------------------------------------
-#if defined(CRSF)
-    // struct RcComConfig {
-    //     uint16_t    RC_FAILSAFE_TIMEOUT_MS;
-    //     uint16_t    RC_FAILSAFE_CYCLE;
-    // };
-    // extern const RcComConfig cfg_RcCom;
-
-    // ----------------------------------------------------------
-    //  RC Wertebereiche (zentrale Standardwerte)
-    // ----------------------------------------------------------
-    constexpr int CRSF_BAUDRATE            = 420000;
-    constexpr uint8_t CRSF_PACKET_LEN          = 24;
-    constexpr uint8_t CRSF_CHANNEL             = 16;
-
-    constexpr uint16_t RC_MIN                   = 1000;     //CRFS Raw Values 172
-    constexpr uint16_t RC_MAX                   = 2000;     //CRFS Raw Values 1810
-    constexpr uint16_t RC_MIDDLE                 = 1500;    //CRFS Raw Values 992
-
-    constexpr uint16_t RC_FAILSAFE_TIMEOUT_MS   = 300;
-    constexpr uint16_t RC_FAILSAFE_CYCLE        = 1000;
+#if defined(CRSF_SERIAL)
+    // Anzahl der Kanäle 
+    #define CRSF_NUM_CHANNELS 16
 #endif
 
 // ---------------------------------------------------------
@@ -189,16 +199,35 @@
 // ---------------------------------------------------------
 //  Datenstruktur: RC Eingaben zu qRCCom Queue
 // ---------------------------------------------------------
-struct RcInputData {
-    bool FailSafeRC;
-    uint16_t channel[CRSF_CHANNEL];   // Anzahl der Kanäle 
-    uint32_t timestampMs;   // Timestamp der Nachricht
-    };
+// ---------------------------------------------------------
+//  Datenstruktur: RC Eingaben zu qRCCom Queue
+// ---------------------------------------------------------
+
+enum class RcLinkState : uint8_t {
+    UpLink,
+    DownLink,       // timeout erkannt
+    WrongValues        // Falsche Raw Werte
+};
+
+struct RcFrameData {
+    uint32_t timestampMs;                 // Zeitpunkt der Messung/Entscheidung
+    RcLinkState state;              // Link-Status
+    uint16_t ch_us[CRSF_NUM_CHANNELS];   // 1000..2000 (geclamped)
+   };
+
+// struct RcInputData {
+//     bool FailSafeRC;
+//     uint16_t channel[CRSF_CHANNEL];   // Anzahl der Kanäle 
+//     uint32_t timestampMs;   // Timestamp der Nachricht
+//     };
 
 // ---------------------------------------------------------
 //  Datenstruktur: Controldaten zu qControl Queue
 // ---------------------------------------------------------
 struct ControlCommandData {
+    bool FailSafeCtrl;
+    FunctionList funcList;
+    uint32_t timestampMs;   // Timestamp der Nachricht
     bool        blinkenRightAct;
     bool        blinkenLeftAct;
     bool        lightHeadAct;
@@ -241,10 +270,10 @@ struct TelemetryData {
 // ---------------------------------------------------------
 //  Benötigte Queues für Datenaustausch zwischen den Tasks
 // ---------------------------------------------------------
-extern QueueHandle_t qRCCom;    // RcInputData: RCCom → ControlSimTask
-extern QueueHandle_t qControl;  // ControlCommandData: ControlSimTask → ActuatorTask
-extern QueueHandle_t qSensor;   // SensorData:  SensorTask → ControlSimTask
-extern QueueHandle_t qTelemetry;     // TelemetryData: ControlSimTask → RCCom
+extern QueueHandle_t q_CRSF;    // RcInputData: RCCom → ControlSimTask
+extern QueueHandle_t q_Control;  // ControlCommandData: ControlSimTask → ActuatorTask
+extern QueueHandle_t q_Sensor;   // SensorData:  SensorTask → ControlSimTask
+extern QueueHandle_t q_Telemetry;     // TelemetryData: ControlSimTask → RCCom
 
 void initQueues();              // in setup() aufrufen
 
@@ -254,7 +283,7 @@ void initQueues();              // in setup() aufrufen
 //  - Timing in Millisecond
 // ---------------------------------------------------------
 struct TaskTimingConfig {
-    uint16_t rcTaskCycleMs;      // RcCom Zyklus
+    uint16_t crsfTaskCycleMs;      // RcCom Zyklus
     uint16_t ctrlTaskCycleMs;    // CtrlSim Zyklus
     uint16_t sensorTaskCycleMs;  // SensorTask Zyklus
     uint16_t actuatorTaskCycleMs;// AktorTask Zyklus
@@ -280,6 +309,16 @@ extern const size_t          cfg_rcChannelCount;
 
 const RcChannelConfig* getRcChannelConfig(uint8_t channelId);
 
+enum class PWFStatus : uint8_t {
+    Parken = 0,   // Fahrzeug ohne RC Verbindung
+    Wohnen = 1,   // Licht, Verbraucher an, aber kein Fahren
+    Fahren = 2    // Antrieb aktiv
+};
+
+enum class FailSafe : uint8_t {
+    RC_Failure = 0,   // Fahrzeug ohne RC Verbindung
+    Sensor_Failure = 1,   // Keine Sensor Daten
+};
 
 
 

@@ -25,7 +25,7 @@ private:
 
     // Methoden für die Verarbeitung der RC Sender Daten
     bool checkCrsfPacket();
-    void decodeCrsfPacket();
+    bool decodeCrsfPacket();
     void failSafeActive();
     void publishRcDataQueue();
     void debug(bool newFrame);

@@ -120,19 +120,19 @@ const GpioConfig cfg_GPIO = {
 //  Queues
 // ---------------------------------------------------------
 
-QueueHandle_t qRCCom   = nullptr;
-QueueHandle_t qSensor = nullptr;
-QueueHandle_t qControl= nullptr;
-QueueHandle_t qTelemetry   = nullptr;
+QueueHandle_t q_CRSF   = nullptr;
+QueueHandle_t q_Sensor = nullptr;
+QueueHandle_t q_Control= nullptr;
+QueueHandle_t q_Telemetry   = nullptr;
 
 void initQueues() {
     // latest-only für Steuerung und Sensorik
-    qRCCom      = xQueueCreate(1, sizeof(RcInputData));
-    qSensor     = xQueueCreate(1, sizeof(SensorData));
+    q_CRSF      = xQueueCreate(1, sizeof(RcFrameData));
+    q_Sensor     = xQueueCreate(1, sizeof(SensorData));
 
     // Control & Telemetry dürfen etwas gepuffert werden
-    qControl    = xQueueCreate(5, sizeof(ControlCommandData));
-    qTelemetry  = xQueueCreate(5, sizeof(TelemetryData));
+    q_Control    = xQueueCreate(5, sizeof(ControlCommandData));
+    q_Telemetry  = xQueueCreate(5, sizeof(TelemetryData));
 }
 
 // ---------------------------------------------------------
@@ -142,7 +142,7 @@ void initQueues() {
 //  *** Hier müssen Anpassungen gemacht werden ***
 // ---------------------------------------------------------
 const TaskTimingConfig cfg_taskTimings = {
-    .rcTaskCycleMs       = 5,
+    .crsfTaskCycleMs       = 5,
     .ctrlTaskCycleMs     = 10,
     .sensorTaskCycleMs   = 10,
     .actuatorTaskCycleMs = 10
@@ -155,39 +155,59 @@ const TaskTimingConfig cfg_taskTimings = {
 //  *** Hier müssen Anpassungen gemacht werden ***
 // ---------------------------------------------------------
 
-#if defined(POCKET)
-    const RcChannelConfig cfg_rcChannels[] = {
-        // channelId, RcInputType,    min,     max,   cnt, Funktion
-        { 1, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},  
-        { 2, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},    
-        { 3, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},   
-        { 4, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},     
-        { 5, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
-        { 6, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
-        { 7, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
-        { 8, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
-        { 9, RcInputType::Momentary,    RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {10, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {11, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {12, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {13, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {14, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {15, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
-        {16, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE}
-    };
-#endif
+// #if defined(POCKET)
+//     const RcChannelConfig cfg_rcChannels[] = {
+//         // channelId, RcInputType,    min,     max,   cnt, Funktion
+//         { 1, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},  
+//         { 2, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},    
+//         { 3, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},   
+//         { 4, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},     
+//         { 5, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
+//         { 6, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
+//         { 7, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         { 8, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         { 9, RcInputType::Momentary,    RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {10, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {11, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {12, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {13, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {14, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {15, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+//         {16, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE}
+//     };
 
-const size_t g_rcChannelCount =
-    sizeof(cfg_rcChannels) / sizeof(cfg_rcChannels[0]);
+    // const RcChannelConfig cfg_rcChannels[] = {
+    //     // channelId, RcInputType,    min,     max,   cnt, Funktion
+    //     { ctrlLights,   ch1,    RcInputType::Analog},  
+    //     { ctrlHeadBeam, ch4,    RcInputType::Analog},    
+    //     { ctrlRearBrake, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},   
+    //     { ctrlReverse, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},     
+    //     { 5, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
+    //     { 6, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},         
+    //     { 7, RcInputType::Switch3Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     { 8, RcInputType::Switch2Pos,   RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     { 9, RcInputType::Momentary,    RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {10, RcInputType::Analog,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {11, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {12, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {13, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {14, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {15, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE},
+    //     {16, RcInputType::Unused,       RC_MIN,  RC_MAX,  RC_MIDDLE}
+    // };
+//#endif
 
-const RcChannelConfig* getRcChannelConfig(uint8_t channelId) {
-    for (size_t i = 0; i < g_rcChannelCount; ++i) {
-        if (cfg_rcChannels[i].channelId == channelId) {
-            return &cfg_rcChannels[i];
-        }
-    }
-    return nullptr;
-}
+// const size_t g_rcChannelCount =
+//     sizeof(cfg_rcChannels) / sizeof(cfg_rcChannels[0]);
+
+// const RcChannelConfig* getRcChannelConfig(uint8_t channelId) {
+//     for (size_t i = 0; i < g_rcChannelCount; ++i) {
+//         if (cfg_rcChannels[i].channelId == channelId) {
+//             return &cfg_rcChannels[i];
+//         }
+//     }
+//     return nullptr;
+//}
 
 
 

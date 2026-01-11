@@ -70,11 +70,17 @@ void RcCom::taskLoop() {
         // Keine neu-geparsten RC Daten
         _newChannelData = false;
 
-        // UART / Check ob komplettes CRSF Packet zur Verfügung steht
+        // // UART / Check ob komplettes CRSF Packet zur Verfügung steht
         bool newFrame = checkCrsfPacket(); 
 
-        // UART / CRSF Packete parsen und Channel Werte zuordnen
-        if (newFrame) decodeCrsfPacket();
+        // // UART / CRSF Packete parsen und Channel Werte zuordnen
+        // if (newFrame) decodeCrsfPacket();
+
+        
+        if (!decodeCrsfPacket()) {
+            Serial.println("RCCOM: Ungültiges RC-Frame verworfen");
+            return;
+        }
         
         // Aktuelle Zeit speichern
         _now = millis();
@@ -96,7 +102,6 @@ void RcCom::taskLoop() {
     }
 }
 
-
 // ---------------------------------------------------------
 //  UART / Check ob komplettes CRSF Packet zur Verfügung steht
 // ---------------------------------------------------------
@@ -106,41 +111,87 @@ bool RcCom::checkCrsfPacket()
 
     while (_crsf.available() >= CRSF_PACKET_LEN)
     {
-        // Sync auf Frame-Start (Adresse 0xC8)
+        // Auf Sync-Byte 0xC8 ausrichten
         if (_crsf.peek() != 0xC8) {
-            _crsf.read();
-            continue;   // falsches Byte → verwerfen & weitersuchen
-        }
-
-        // Startbyte korrekt - 24 Bytes einlesen
-        size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
-        if (n != CRSF_PACKET_LEN) {
-            break;  // unvollständiges Paket → Schleife verlassen,
-        }
-
-        // Optional: minimale Längenprüfung (CRSF length-Field grob prüfen)
-        // buffer[1] ist "Length" (Type + Payload + CRC)
-        if (_buffer[1] < 5 || _buffer[1] > 32) {
-            // Unplausible Länge → Paket ignorieren
+            _crsf.read();      // falsches Byte verwerfen
             continue;
         }
 
+        // Jetzt sollten mindestens 26 Bytes für ein komplettes RC-Frame da sein
+        size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
+        if (n != CRSF_PACKET_LEN) {
+            // unvollständiges Paket -> abbrechen, bis mehr Daten da sind
+            break;
+        }
 
+        // _buffer[0] = 0xC8 (Adresse / Sync)
+        // _buffer[1] = Length (Type + Payload + CRC)
+        // _buffer[2] = Type (0x16 = RC Channels)
+
+        // Länge plausibel?
+        if (_buffer[1] < 5 || _buffer[1] > 32) {
+            // unplausible Länge -> Paket ignorieren, weiter suchen
+            continue;
+        }
+
+        // Ist es überhaupt ein RC-Channel-Frame?
+        if (_buffer[2] != 0x16) {
+            //Serial.println("RCCOM: CRSF falsches Packet. Ungleich 0x16...");
+            continue;
+        }
+
+        // Hier hast du ein komplettes, plausibles RC-Frame im Buffer
         foundFrame = true;
+        break;      // dieses Frame benutzen, nicht noch weiter wegwerfen
     }
+
     return foundFrame;
-}  
+}
+
+// // ---------------------------------------------------------
+// //  UART / Check ob komplettes CRSF Packet zur Verfügung steht
+// // ---------------------------------------------------------
+// bool RcCom::checkCrsfPacket()
+// {
+//     bool foundFrame = false;
+
+//     while (_crsf.available() >= CRSF_PACKET_LEN)
+//     {
+//         // Sync auf Frame-Start (Adresse 0xC8)
+//         if (_crsf.peek() != 0xC8) {
+//             _crsf.read();
+//             continue;   // falsches Byte → verwerfen & weitersuchen
+//         }
+
+//         // Startbyte korrekt - 24 Bytes einlesen
+//         size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
+//         if (n != CRSF_PACKET_LEN) {
+//             break;  // unvollständiges Paket → Schleife verlassen,
+//         }
+
+//         // Optional: minimale Längenprüfung (CRSF length-Field grob prüfen)
+//         // buffer[1] ist "Length" (Type + Payload + CRC)
+//         if (_buffer[1] < 5 || _buffer[1] > 32) {
+//             // Unplausible Länge → Paket ignorieren
+//             continue;
+//         }
+
+
+//         foundFrame = true;
+//     }
+//     return foundFrame;
+// }  
 
 // ---------------------------------------------------------
 //  UART / CRSF Packete parsen und Channel Werte zuordnen
 // ---------------------------------------------------------
-void RcCom::decodeCrsfPacket()
+bool RcCom::decodeCrsfPacket()
 {
     // Sanity-Check: RC-Channel-Frame?
-    if (_buffer[2] != 0x16) {
-        //Serial.println("RCCOM: CRSF falsches Packet. Ungleich 0x16...");
-        return; // anderes Paket (z.B. Link-Stats, GPS, etc.)
-    }
+    // if (_buffer[2] != 0x16) {
+    //     //Serial.println("RCCOM: CRSF falsches Packet. Ungleich 0x16...");
+    //     return; // anderes Paket (z.B. Link-Stats, GPS, etc.)
+    // }
 
     // Failsafe: erst mal alle Kanäle auf Mittelstellung setzen
     for (int i = 0; i < CRSF_CHANNEL; i++) {
@@ -163,6 +214,13 @@ void RcCom::decodeCrsfPacket()
         _rcChannel[ch] = bitBuffer & 0x07FF;   // 11 Bit → 0..2047
         bitBuffer >>= 11;
         bitCount   -= 11;
+
+        // Bereichscheck
+        if (_rcChannel[ch] > 2047) {
+            // Ungültiger Wert -> dieses Frame verwerfen
+            Serial.println("RCCOM: Ungültiger Wert ..> 2047");
+            return false;
+        }
     }
 
     // Zeitstempel für Failsafe-Überwachung aktualisieren
@@ -175,6 +233,7 @@ void RcCom::decodeCrsfPacket()
     }
 
     _newChannelData = true;
+    return true;
 }
 
 // ---------------------------------------------------------
@@ -205,7 +264,11 @@ void RcCom::publishRcDataQueue()
             RcInputData frame{};
             frame.timestampMs = _lastPacketMs;
             for (int i = 0; i < CRSF_CHANNEL; ++i) {
-                frame.channel[i] = _rcChannel[i];
+        
+                frame.channel[i] = map(_rcChannel[i], 172, 1811, 1000, 2000);
+                frame.channel[i] = constrain(frame.channel[i], 1000, 2000);
+
+                //frame.channel[i] = _rcChannel[i];
             }
             frame.FailSafeRC = _failsafeActive;
             xQueueOverwrite(qRCCom, &frame);

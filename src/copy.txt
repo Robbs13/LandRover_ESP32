@@ -38,3 +38,77 @@ struct ControlCommandData {
     uint16_t    ctrlShaker;
     uint16_t    ctrlSound;
 };
+
+// ---------------------------------------------------------
+//  UART / Check ob komplettes CRSF Packet zur Verfügung steht
+// ---------------------------------------------------------
+bool RcCom::checkCrsfPacket()
+{
+    bool foundFrame = false;
+
+    while (_crsf.available() >= CRSF_PACKET_LEN)
+    {
+        // Auf Sync-Byte 0xC8 ausrichten
+        if (_crsf.peek() != 0xC8) {
+            _crsf.read();      // falsches Byte verwerfen
+            continue;
+        }
+
+        // Jetzt sollten mindestens 26 Bytes für ein komplettes RC-Frame da sein
+        size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
+        if (n != CRSF_PACKET_LEN) {
+            // unvollständiges Paket -> abbrechen, bis mehr Daten da sind
+            break;
+        }
+
+        // _buffer[0] = 0xC8 (Adresse / Sync)
+        // _buffer[1] = Length (Type + Payload + CRC)
+        // _buffer[2] = Type (0x16 = RC Channels)
+
+        // Länge plausibel?
+        if (_buffer[1] < 5 || _buffer[1] > 32) {
+            // unplausible Länge -> Paket ignorieren, weiter suchen
+            continue;
+        }
+
+        // Ist es überhaupt ein RC-Channel-Frame?
+        if (_buffer[2] != 0x16) {
+            // anderer Frame-Typ -> aktuell ignorieren
+            continue;
+        }
+
+        // Hier hast du ein komplettes, plausibles RC-Frame im Buffer
+        foundFrame = true;
+        break;      // dieses Frame benutzen, nicht noch weiter wegwerfen
+    }
+
+    return foundFrame;
+}
+
+#####################
+
+bool RcCom::decodeChannels()
+{
+    uint32_t bitBuffer = 0;
+    uint8_t bitCount = 0;
+    uint8_t dataIndex = 3;
+
+    for (int ch = 0; ch < 16; ch++) {
+        while (bitCount < 11) {
+            bitBuffer |= ((uint32_t)_buffer[dataIndex++]) << bitCount;
+            bitCount += 8;
+        }
+        _channel[ch] = bitBuffer & 0x7FF;
+        bitBuffer >>= 11;
+        bitCount -= 11;
+
+        // Bereichscheck
+        if (_channel[ch] > 2047) {
+            // Ungültiger Wert -> dieses Frame verwerfen
+            return false;
+        }
+    }
+
+    return true;
+}
+
