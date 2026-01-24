@@ -279,7 +279,7 @@ void CRSF_serial::packetChannelsPacked(const crsf_header_t *p)
 
         // Umrechnung in RC Format 1000-2000
         UsResult usResult = CRSF_to_US((int)ch, (int)raw);
-        frame.ch_us[ch] = usResult.us;
+        frame.channel[ch] = usResult.us;
 
         //Kompletter Frame wird als ungültig markiert, Values außerhalb Wertebereich
         if (!usResult.valid){
@@ -315,6 +315,7 @@ void CRSF_serial::publishRcChannelToQueue(const RcFrameData& frame)
 
     if (frame.state != RcLinkState::WrongValues) {
         xQueueOverwrite(q_CRSF, &frame);
+        //xQueueSendToBack(q_CRSF, &frame, 0);
 
         // Ausgabe der RC Frame Werte
         #if defined(DEBUG_CRSF_OUT)
@@ -368,7 +369,7 @@ void CRSF_serial::checkLinkDown()
         frame.timestampMs = millis();
         for (int i = 0; i < CRSF_NUM_CHANNELS; ++i) {
             
-            frame.ch_us[i] = (uint16_t)1500;
+            frame.channel[i] = (uint16_t)1500;
         }
         frame.state = RcLinkState::DownLink;
 
@@ -497,7 +498,7 @@ void CRSF_serial::debugOut(const RcFrameData& frame)
             if (!initialized) {
                 for (int i = 0; i < CRSF_NUM_CHANNELS; ++i)
                     //prev[i] = _channels[i];
-                    prev[i] = frame.ch_us[i];
+                    prev[i] = frame.channel[i];
 
                 initialized = true;
 
@@ -535,7 +536,7 @@ void CRSF_serial::debugOut(const RcFrameData& frame)
                 String out;
 
                 for (int ch = 0; ch < CRSF_NUM_CHANNELS; ++ch) {
-                    int cur = frame.ch_us[ch];
+                    int cur = frame.channel[ch];
 
                     if (abs(cur - prev[ch]) >= DELTA_US) { 
                         change = true;
@@ -545,7 +546,7 @@ void CRSF_serial::debugOut(const RcFrameData& frame)
                 if (change == true){
                     for (int i = 0; i < CRSF_NUM_CHANNELS; ++i)
                     //prev[i] = _channels[i];
-                        prev[i] = frame.ch_us[i];
+                        prev[i] = frame.channel[i];
 
                     Serial.print("["); Serial.print(millis()); Serial.print("ms]");
                     Serial.print(" Queue RC Message: ");
@@ -609,11 +610,11 @@ UsResult CRSF_serial::CRSF_to_US(int ch, int crsf)
         return usResult;
     }
 
-    // Umrechnung von auf RC Wertebereich
+    // Umrechnung zu RC Werte
     if (crsf <= CRSF_VALUE_MID) {
-        us = 1500 - (int)(((uint32_t)(CRSF_VALUE_MID - crsf) * 500u + 410u) / 820u);
+        us = 1500 - (int)(( (uint32_t)(CRSF_VALUE_MID - crsf) * 500u ) / (CRSF_VALUE_MID - CRSF_VALUE_MIN));
     } else {
-        us = 1500 + (int)(((uint32_t)(crsf - CRSF_VALUE_MID) * 500u + 409u) / 818u);
+        us = 1500 + (int)(( (uint32_t)(crsf - CRSF_VALUE_MID) * 500u ) / (CRSF_VALUE_MAX - CRSF_VALUE_MID));
     }
 
     // Ausgang hart auf 1000–2000 clampen, falls Umrechnungsformel nicht passt

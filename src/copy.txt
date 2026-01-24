@@ -1,114 +1,247 @@
-#define FUNC_HEADLIGHTS_BEAM
-//  #define FUNC_REARLIGHTS
-#define FUNC_REARLIGHTS_BRAKE
-//  #define FUNC_BRAKELIGHTS
-#define FUNC_REVERSELIGHT
-#define FUNC_BLINK
-#define FUNC_POSLIGHTS
-#define FUNC_WORKLIGHT
-#define FUNC_TACHOLIGHT
-#define FUNC_PIPEFIRE
+Anschauen als beispiel für blinken
 
-//*** Fahr Funktionen
-#define FUNC_THROTTLE_SIM
-#define FUNC_STEERING_SIM
-#define FUNC_TRANSMISSION
 
-//*** Weitere Funktionen
-#define FUNC_WINCH
-#define FUNC_SHAKER
-#define FUNC_SOUND
+#include <cstdint>
+#include <cstddef>
 
-//*** Control Datenstruktur von Sim zu Act
-struct ControlCommandData {
-    bool        blinkenRightAct;
-    bool        blinkenLeftAct;
-    bool        lightHeadAct;
-    bool        lightBeamAct;
-    bool        lightRearAct;
-    bool        lightBrakeAct;
-    bool        lightReverseAct;
-    bool        lightPosAct;
-    bool        lightWorkAct;
-    bool        lightTachoAct;
-    uint16_t    ctrlDrive;
-    uint16_t    ctrlSteer;
-    uint16_t    ctrlTransmission;
-    uint16_t    ctrlWinch;
-    uint16_t    ctrlShaker;
-    uint16_t    ctrlSound;
+constexpr size_t MAP_COUNT = sizeof(cfg_rcGpioMap) / sizeof(cfg_rcGpioMap[0]);
+
+struct GpioSnapshot {
+  uint16_t v[MAP_COUNT]; // Digital: 0/1
 };
 
-// ---------------------------------------------------------
-//  UART / Check ob komplettes CRSF Packet zur Verfügung steht
-// ---------------------------------------------------------
-bool RcCom::checkCrsfPacket()
+static inline int8_t threePosFromRc(uint16_t rc,
+                                   uint16_t lowThr  = 1400,
+                                   uint16_t highThr = 1600)
 {
-    bool foundFrame = false;
+  // rc garantiert 1000..2000
+  if (rc < lowThr)  return -1;
+  if (rc > highThr) return +1;
+  return 0;
+}
 
-    while (_crsf.available() >= CRSF_PACKET_LEN)
+static inline uint16_t toDigital(bool on) { return on ? 1u : 0u; }
+
+static int findFirstMapIndex(FunctionList f) {
+  for (size_t i = 0; i < MAP_COUNT; ++i) {
+    if (cfg_rcGpioMap[i].function == f) return (int)i;
+  }
+  return -1;
+}
+
+// Simulator-Task: alle 10ms aufrufen
+void SimStepBlinkRight(const uint16_t rcChannels[16], GpioSnapshot& snap)
+{
+  // 1) Map-Index einmalig bestimmen
+  static int idxBlinkRight = -2;
+  if (idxBlinkRight == -2) {
+    idxBlinkRight = findFirstMapIndex(FunctionList::handleBlinkRight);
+  }
+  if (idxBlinkRight < 0) return; // nicht gemappt
+
+  const auto& map = cfg_rcGpioMap[idxBlinkRight];
+
+  // 2) RC-Kanal aus der Config lesen (0-basiert, passt!)
+  const uint8_t ch = static_cast<uint8_t>(map.channel); // Channel6 == 5
+  const uint16_t rc = rcChannels[ch];                   // 1000..2000
+
+  // 3) Rechts-Anforderung (ThreePos -> +1)
+  const bool requestRight =
+      (map.inputType == InputType::ThreePos) &&
+      (threePosFromRc(rc) == +1);
+
+  // 4) Blink-Takt (2 Hz): Phase toggelt alle 250ms
+  static bool phase = false;
+  static uint16_t accMs = 0;
+
+  accMs += 10;
+  if (accMs >= 250) {
+    accMs = 0;
+    phase = !phase;
+  }
+
+  // 5) Snapshot schreiben: Digital 0/1
+  snap.v[idxBlinkRight] = toDigital(requestRight && phase);
+}
+
+
+
+
+
+
+
+Alles klar – hier ist ein komplettes, praxistaugliches Beispiel für dein Setup:
+cfg_rcGpioMap[] bleibt die einzige Config-Quelle
+CtrlSim baut alle 10ms einen Frame mit 3 Listen (PWM/Digital/DAC)
+doppelte Pins (z.B. Head + Beam auf gleichem Pin) werden per setOrAdd zusammengeführt
+GpioTask macht nur 3 Schleifen und setzt die Ausgänge
+Queue: Länge 1 + xQueueOverwrite() (aktueller Zustand zählt)
+Ich nehme an:
+RC-Kanäle: uint16_t rc[16] mit 1000..2000
+GpioConfig ist dein enum class mit echten GPIO-Nummern (99 = “unused”)
+OutputType ist PWM/Digital/DAC
+du hast FreeRTOS (ESP32 / PlatformIO)
+
+
+
+
+// ---------------------------------------------------------
+//  Methode für die Lichtsteuerung
+// ---------------------------------------------------------
+void CtrlSim::handleLights()
+{
+    if (_idxHeadLight < 0) {
+        _idxHeadLight = findFirstMapIndex(FunctionList::handleLightHead);
+        if (_idxHeadLight < 0) return;
+    }
+    if (_idxBeamLight < 0) {
+        _idxBeamLight = findFirstMapIndex(FunctionList::handleLightBeam);
+        if (_idxBeamLight < 0) return;
+    }
+    if (_idxRearLight < 0) {
+        _idxRearLight = findFirstMapIndex(FunctionList::handleLightRear);
+        if (_idxRearLight < 0) return;
+    }
+    // if (_idxBrakeLight < 0) {
+    //     _idxBrakeLight = findFirstMapIndex(FunctionList::handleLightBrake);
+    //     if (_idxBrakeLight < 0) return;
+    // }
+
+    //
+    const auto& mapHead = cfg_rcGpioMap[static_cast<size_t>(_idxHeadLight)];
+    const auto& mapBeam = cfg_rcGpioMap[static_cast<size_t>(_idxBeamLight)];
+    const auto& mapRear = cfg_rcGpioMap[static_cast<size_t>(_idxRearLight)];
+
+    // -------- Inputs --------
+    const bool headOn  = (_rc.ch_us[int(mapHead.channelCount)] > CTRL_POS_2P_TH);
+    const bool beamPressed = (_rc.ch_us[int(mapBeam.channelCount)] > CTRL_POS_2P_TH);
+    const bool brakePressed = ((900 < _rc.ch_us[2]) && (_rc.ch_us[2] < 1100));
+    const bool startSignal  = (_rc.ch_us[2] > 1800);
+
+    _rearOv = brakePressed ? RearOverlay::Brake : RearOverlay::Off;
+
+    // -------- Beam timing --------
+    const bool beamDown = (beamPressed && !_beamPressedPrev);
+    const bool beamUp   = (!beamPressed && _beamPressedPrev);
+    _beamPressedPrev = beamPressed;
+
+    if (beamDown) {
+        _beamPressStartMs = millis();
+        _beamLongHandled = false;
+    }
+
+    const bool beamLong = (beamPressed && !_beamLongHandled &&
+                          (millis() - _beamPressStartMs >= BEAM_LONG_MS));
+    if (beamLong) _beamLongHandled = true;
+
+    // -------- BaseState FSM --------
+    switch (_base)
     {
-        // Auf Sync-Byte 0xC8 ausrichten
-        if (_crsf.peek() != 0xC8) {
-            _crsf.read();      // falsches Byte verwerfen
-            continue;
-        }
-
-        // Jetzt sollten mindestens 26 Bytes für ein komplettes RC-Frame da sein
-        size_t n = _crsf.readBytes(_buffer, CRSF_PACKET_LEN);
-        if (n != CRSF_PACKET_LEN) {
-            // unvollständiges Paket -> abbrechen, bis mehr Daten da sind
+        case BaseState::Off:
+            if (headOn) _base = BaseState::LightOn;
+            else if (beamPressed) {
+                _beamFlashFromLightOn = false;
+                _base = BaseState::BeamFlash;
+            }
             break;
-        }
 
-        // _buffer[0] = 0xC8 (Adresse / Sync)
-        // _buffer[1] = Length (Type + Payload + CRC)
-        // _buffer[2] = Type (0x16 = RC Channels)
+        case BaseState::LightOn:
+            if (!headOn) _base = BaseState::Off;
+            else if (beamPressed) {
+                _beamFlashFromLightOn = true;
+                _base = BaseState::BeamFlash;
+            }
+            break;
 
-        // Länge plausibel?
-        if (_buffer[1] < 5 || _buffer[1] > 32) {
-            // unplausible Länge -> Paket ignorieren, weiter suchen
-            continue;
-        }
+        case BaseState::BeamFlash:
+            if (beamLong && _beamFlashFromLightOn) _base = BaseState::BeamHold;
+            else if (beamUp) _base = _beamFlashFromLightOn ? BaseState::LightOn : BaseState::Off;
+            break;
 
-        // Ist es überhaupt ein RC-Channel-Frame?
-        if (_buffer[2] != 0x16) {
-            // anderer Frame-Typ -> aktuell ignorieren
-            continue;
-        }
-
-        // Hier hast du ein komplettes, plausibles RC-Frame im Buffer
-        foundFrame = true;
-        break;      // dieses Frame benutzen, nicht noch weiter wegwerfen
+        case BaseState::BeamHold:
+            if (!headOn) _base = BaseState::Off;
+            else if (beamLong) _base = BaseState::LightOn;
+            break;
     }
 
-    return foundFrame;
-}
+    const bool frontOn = frontBaseOn(_base);
+    const bool rearOn  = rearBaseOn(_base, _beamFlashFromLightOn);
+    const bool anyLoad = frontOn || rearOn || (_rearOv == RearOverlay::Brake);
 
-#####################
-
-bool RcCom::decodeChannels()
-{
-    uint32_t bitBuffer = 0;
-    uint8_t bitCount = 0;
-    uint8_t dataIndex = 3;
-
-    for (int ch = 0; ch < 16; ch++) {
-        while (bitCount < 11) {
-            bitBuffer |= ((uint32_t)_buffer[dataIndex++]) << bitCount;
-            bitCount += 8;
+    // -------- Flicker State --------
+    if (_fx == EffectState::Normal) {
+        if (startSignal && anyLoad) {
+            _fx = EffectState::Flicker;
+            _flickerStartMs = millis();
+            _flickerPhase = 0.6f;
+            _flickerLastUpdateMs = _flickerStartMs;
         }
-        _channel[ch] = bitBuffer & 0x7FF;
-        bitBuffer >>= 11;
-        bitCount -= 11;
-
-        // Bereichscheck
-        if (_channel[ch] > 2047) {
-            // Ungültiger Wert -> dieses Frame verwerfen
-            return false;
-        }
+    } else {
+        if (!startSignal || !anyLoad) _fx = EffectState::Normal;
     }
 
-    return true;
-}
+    uint16_t frontPwm = LIGHT_OUT;
+    uint16_t rearTailPwm = rearOn ? 1700 : LIGHT_OUT;
+    uint16_t rearBrakePwm = (_rearOv == RearOverlay::Brake) ? 2000 : LIGHT_OUT;
 
+    if (_base == BaseState::LightOn) frontPwm = 1700;
+    if (_base == BaseState::BeamFlash || _base == BaseState::BeamHold) frontPwm = BEAM_BRIGHTNESS;
+
+    // -------- Flicker Physics --------
+    if (_fx == EffectState::Flicker)
+    {
+        const uint32_t now = millis();
+        const float t = (now - _flickerStartMs) * 0.001f;
+
+        const uint32_t dtMs = now - _flickerLastUpdateMs;
+        _flickerLastUpdateMs = now;
+        const float dt = constrain(dtMs * 0.001f, 0.0f, 0.05f);
+
+        const float fStart = 1.4f;   // Start-Hz (schnell)
+        const float fEnd   = 0.35f;  // End-Hz (langsam)
+        const float fTau   = 3.0f;   // Je kleiner tau desto schneller wird er langsam
+        const float fInst  = fEnd + (fStart - fEnd) * expf(-t / fTau);
+
+        _flickerPhase += 2.0f * PI * fInst * dt;
+
+        const float baseFront = 1650.0f - 150.0f * (1.0f - expf(-t / 3.5f)); // 3.5f je kleiner = schneller wird er dunkler (Einbruch schneller).
+        const float baseRear  = baseFront - 20.0f;
+        const float baseBrake = 1950.0f - 180.0f * (1.0f - expf(-t / 3.5f)); // 3.5f je kleiner = schneller wird er dunkler (Einbruch schneller).
+
+        const float amp0 = 450.0f;
+        const float ampMin = 90.0f;       // ampMin bestimmt, wie stark es am Ende noch “pumpt”.
+        const float amp = ampMin + (amp0 - ampMin) * expf(-t / 6.0f); // 6.0f je kleiner = schneller wird die Schwankung kleiner.
+
+        const float jitter = 0.15f * sinf(_flickerPhase * 0.37f) //0.15 und 0.08 = Stärke der Unregelmäßigkeit
+                           + 0.08f * sinf(_flickerPhase * 1.91f); //0.37 und 1.91 = “Charakter” (wie chaotisch/uneven)
+
+        const float osc = sinf(_flickerPhase) + jitter;
+
+        uint16_t frontVal = (uint16_t)(baseFront + amp * osc);
+        uint16_t rearVal  = (uint16_t)(baseRear  + amp * osc);
+        uint16_t brakeVal = (uint16_t)(baseBrake + amp * 0.7f * osc);
+
+        frontVal = constrain(frontVal, 1050, 1800);
+        rearVal  = constrain(rearVal,  1050, 1800);
+        brakeVal = constrain(brakeVal, 1350, 2000);
+
+        if (frontOn) frontPwm = frontVal;
+        if (rearOn)  rearTailPwm = rearVal;
+        if (_rearOv == RearOverlay::Brake) rearBrakePwm = brakeVal;
+    }
+
+    uint16_t rearPwm = max(rearTailPwm, rearBrakePwm);
+
+    // -------- Output --------
+    if (!_lastValid || frontPwm != _lastFrontPwm) {
+        addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapHead.gpioConfig), frontPwm });
+        _lastFrontPwm = frontPwm;
+        _lastValid = true;
+    }
+
+    if (!_lastValid || rearPwm != _lastRearPwm) {
+        addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapRear.gpioConfig), rearPwm });
+        _lastRearPwm = rearPwm;
+        _lastValid = true;
+    }
+}

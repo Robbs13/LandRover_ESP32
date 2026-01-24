@@ -26,72 +26,54 @@
 // ---------------------------------------------------------
 #if defined(CRSF_SERIAL)
     //#define DEBUG_CRSF_IN
-    #define DEBUG_CRSF_OUT
+    //#define DEBUG_CRSF_OUT
 #endif
 
-//#define DEBUG_RCCOM
-#define DEBUG_CTRLSIM
+#define DEBUG_CTRLSIM_RC_MISSED
+#define DEBUG_CTRLSIM_TASK_CYCLE
 
 // ---------------------------------------------------------
 //  Konfiguration: Fahrzeug
 // ---------------------------------------------------------
 #if defined(LANDROVER_TOWTRUCK)
-    // Struct für die möglichen Lichtfunktionen
-    struct VehicleFeatureConfig {
-        bool enableLights;
-        bool enableHeadBeam;
-        bool enableRearBrake;
-        bool enableReverse;
-        bool enableBlink;
-        bool enableSide;
-        bool enableWork;
-        bool enableCabine;
-        bool enablePipeFire;  
 
-        bool enableDrive;
-        bool enableSteering;
-        bool enableGear;
-        bool enableWinch;
-        bool enableShaker;
-        bool enableSound;
+    #define LIGHT_OUT 1000
+    #define BLINK_TIME 500
+    #define BLINK_BRIGHTNESS 2000
+    #define HEAD_BRIGHTNESS 1500
+    #define BEAM_BRIGHTNESS 2000
+    #define REAR_BRIGHTNESS 1500
+    #define BRAKE_BRIGHTNESS 2000
+    #define POS_BRIGHTNESS 2000
+    #define REVERSE_BRIGHTNESS 2000
+    #define WORK_BRIGHTNESS 2000
+    #define BEAM_LONG_MS 1000
 
-        bool enableUndefined;
-    };
-    extern const VehicleFeatureConfig cfg_vehicleFeature;
 
     // ---------------------------------------------------------
     //  Aktive Funktionen
     // ---------------------------------------------------------
     enum class FunctionList : uint8_t {
-        blinkenRightAct =   1,
-        blinkenLeftAct  =   2,
-        lightHeadAct    =   3,
-        lightBeamAct    =   4,
-        lightRearAct    =   5,
-        lightBrakeAct   =   6,
-        lightReverseAct =   7,
-        lightPosAct     =   8,
-        lightWorkAct    =   9,
-        lightTachoAct   =   10,
-        ctrlDrive       =   11,
-        ctrlSteer       =   12,
-        ctrlTransmission=   13,    
-        ctrlWinch       =   14,
-        ctrlShaker      =   15,
-        ctrlSound       =   16,
+        handleDrive,
+        handleBrake,
+        handleSteer,
+        handleGear,
+        handleWinch,
+        handleShaker,
+        handleSound1,
+        handleSound2,
+        handleBlinkLeft,
+        handleBlinkRight,
+        handleLightHead,
+        handleLightBeam,
+        handleLightRear,
+        handleLightBrake,
+        handleLightReverse,
+        handleLightPos,
+        handleLightWork,
+        handleLightCabin,
+        count
     };
-    // extern const VehicleLightFeatureConfig cfg_vehicleLightFeature;
-
-    // // Struct für die möglichen Controlfunktionen
-    // struct VehicleControlFeatureConfig {
-    //     bool enableDrive;
-    //     bool enableSteering;
-    //     bool enableGear;
-    //     bool enableWinch;
-    //     bool enableShaker;
-    //     bool enableSound;
-    // };
-    // extern const VehicleControlFeatureConfig cfg_vehicleControlFeature;
 
     struct VehicleSimConfig {
         float massKg;           // Fahrzeugmasse in kg
@@ -114,74 +96,61 @@
     #define CRSF_NUM_CHANNELS 16
 #endif
 
-// ---------------------------------------------------------
-//  Konfiguration: Remote Control
-// ---------------------------------------------------------
-#if defined(POCKET)
-    // ----------------------------------------------------------
-    //  RC Input Typen (Signalart)
-    // ----------------------------------------------------------
-    enum class RcInputType : uint8_t
-    {
-        Analog,        // Stick / Potentiometer
-        Switch2Pos,    // 2-Position Schalter
-        Switch3Pos,    // 3-Position Schalter
-        Momentary,     // Taster
-        Unused
-    };
-    
-#endif
 
 // ---------------------------------------------------------
 //  Konfiguration:  ESP Controller
 // ---------------------------------------------------------
 #if defined(ESP32AZDEVKITCV4)
-    struct GpioConfig {
+    //#define ESP_PIN_MAX 20
+    #define MAX_PIN_PWM 18
+    #define MAX_PIN_DIG 20
+    #define MAX_PIN_DAC 2
+
+    enum class GpioConfig : uint8_t{
         // Antriebe
-        uint8_t pinMotorPwm;        // PWM - Antriebsmotor
-        uint8_t pinSteerPwm;        // PWM - Servo Lenkung
-        uint8_t pinGearPwm;         // PWM - Servo Transmission
+        pinMotor            = 14,   // PWM - Antriebsmotor
+        pinSteer            = 13,   // PWM - Servo Lenkung
+        pinGear             = 12,   // PWM - Servo Transmission
 
         // Sonstige Aktoren
-        uint8_t pinWinchPwm;        // PWM - Servo Winde
-        uint8_t pinShakerPwm;       // PWM - Servo Shaker
+        pinWinch            = 27,   // PWM - Servo Winde
+        pinShaker           = 23,   // PWM - Servo Shaker
 
         // Sound
-        uint8_t pinSoundDAC1;       // DAC - Sound Kanal 1
-        uint8_t pinSoundDAC2;       // DAC - Sound Kanal 2
+        pinSoundDAC1        = 25,   // DAC - Sound Kanal 1
+        pinSoundDAC2        = 26,   // DAC - Sound Kanal 2
 
         // Licht
-        int8_t pinHeadLightPwm;     // PWM - Licht Scheinwerfer
-        int8_t pinBeamLightPwm;     // PWM - Licht Fernlicht
-        uint8_t pinRearLightPwm;    // PWM - Licht Rücklicht
-        uint8_t pinBrakeLightPwm;   // PWM - Licht Bremslicht
-        uint8_t pinBlinkLeft;       // PWM - Blinken Links
-        uint8_t pinBlinkRight;      // PWM - Blinken Rechts
-        uint8_t pinReverseLight;    // Dig - Licht Rückfahr
-        uint8_t pinPositionLight;   // Dig - Licht Position
-        uint8_t pinWorkLight;       // Dig - Licht Arbeitslicht
-        uint8_t pinTachoInt;        // Dig - Licht Tacho Innenraum
-        uint8_t pinPipeFire;        // PWM - Auspuff
+        pinHeadLight        = 3,    // PWM - Licht Scheinwerfer
+        // pinBeamLight        = 99,   // PWM - Licht Fernlicht
+        pinRearLight        = 4,    // PWM - Licht Rücklicht
+        // pinBrakeLight       = 99,   // PWM - Licht Bremslicht
+        pinBlinkLeft        = 15,   // PWM - Blinken Links
+        pinBlinkRight       = 5,    // PWM - Blinken Rechts
+        pinReverseLight     = 2,    // Dig - Licht Rückfahr
+        pinPositionLight    = 18,   // Dig - Licht Position
+        pinWorkLight        = 0,    // Dig - Licht Arbeitslicht
+        pinCabin            = 19,   // Dig - Licht Tacho Innenraum
+        // pinPipeFire         = 99,   // PWM - Auspuff
 
         // Sensoren
-        uint8_t pinBatAdc;          // Alg - Batteriespannung
-        uint8_t pinSpeedSensorFL;   // Dig - Raddrehzahl
-        uint8_t pinSpeedSensorFR;   // Dig - Raddrehzahl
-        uint8_t pinSpeedSensorRL;   // Dig - Raddrehzahl
-        uint8_t pinSpeedSensorRR;   // Dig - Raddrehzahl
+        // pinBatAdc           = 99,   // Alg - Batteriespannung
+        // pinSpeedSensorFL    = 99,   // Dig - Raddrehzahl
+        // pinSpeedSensorFR    = 99,   // Dig - Raddrehzahl
+        // pinSpeedSensorRL    = 99,   // Dig - Raddrehzahl
+        // pinSpeedSensorRRv   = 99,   // Dig - Raddrehzahl
 
         // RC Communication  / UART
-        uint8_t pinCRSFRx;          // UART - Receive RC Controller
-        uint8_t pinCRSFTx;          // UART - Transmit RC Controller
+        // pinCRSFRx           = 99,   // UART - Receive RC Controller
+        // pinCRSFTx           = 99,   // UART - Transmit RC Controller
 
         // Gyro / I2C
-        uint8_t pinI2CRx;           // I2C - Receive Gyro
-        uint8_t pinI2CTx;           // I2C - Transmit Gyro
-
+        // pinI2CRx            = 99,   // I2C - Receive Gyro
+        // pinI2CTx            = 99,   // I2C - Transmit Gyro
     };
 
-    extern const GpioConfig cfg_GPIO;
 #endif
+
 
 
 // ---------------------------------------------------------
@@ -196,9 +165,7 @@
 // ---------------------------------------------------------
 
 
-// ---------------------------------------------------------
-//  Datenstruktur: RC Eingaben zu qRCCom Queue
-// ---------------------------------------------------------
+
 // ---------------------------------------------------------
 //  Datenstruktur: RC Eingaben zu qRCCom Queue
 // ---------------------------------------------------------
@@ -211,40 +178,41 @@ enum class RcLinkState : uint8_t {
 
 struct RcFrameData {
     uint32_t timestampMs;                 // Zeitpunkt der Messung/Entscheidung
+    uint16_t channel[CRSF_NUM_CHANNELS];   // 1000..2000 (geclamped)
     RcLinkState state;              // Link-Status
-    uint16_t ch_us[CRSF_NUM_CHANNELS];   // 1000..2000 (geclamped)
    };
 
-// struct RcInputData {
-//     bool FailSafeRC;
-//     uint16_t channel[CRSF_CHANNEL];   // Anzahl der Kanäle 
-//     uint32_t timestampMs;   // Timestamp der Nachricht
-//     };
 
 // ---------------------------------------------------------
-//  Datenstruktur: Controldaten zu qControl Queue
+//  Datenstruktur: GpioData zu qControl Queue
 // ---------------------------------------------------------
-struct ControlCommandData {
-    bool FailSafeCtrl;
-    FunctionList funcList;
-    uint32_t timestampMs;   // Timestamp der Nachricht
-    bool        blinkenRightAct;
-    bool        blinkenLeftAct;
-    bool        lightHeadAct;
-    bool        lightBeamAct;
-    bool        lightRearAct;
-    bool        lightBrakeAct;
-    bool        lightReverseAct;
-    bool        lightPosAct;
-    bool        lightWorkAct;
-    bool        lightTachoAct;
-    uint16_t    ctrlDrive;
-    uint16_t    ctrlSteer;
-    uint16_t    ctrlTransmission;
-    uint16_t    ctrlWinch;
-    uint16_t    ctrlShaker;
-    bool        ctrlSound;
+// struct ControlCommandData {
+//     bool FailSafeCtrl;
+//     uint32_t timestampMs;   // Timestamp der Nachricht
+//     //FunctionList funcList;
+//     uint16_t pinOut[static_cast<size_t>(FunctionList::count)];
+//     uint16_t Value[static_cast<size_t>(FunctionList::count)];
+// };
+
+struct PinControl {
+  uint8_t  pin;     // echte GPIO-Nummer
+  uint16_t value;   // RC: 1000..2000, 
 };
+
+struct GpioData {
+  uint32_t tick;     // optional: xTaskGetTickCount()
+  uint8_t  failsafe; // 0/1
+
+  uint8_t pwmCount;
+  uint8_t digCount;
+  uint8_t dacCount;
+
+  PinControl pwm[MAX_PIN_PWM];
+  PinControl dig[MAX_PIN_DIG];
+  PinControl dac[MAX_PIN_DAC];
+};
+
+
 
 // ---------------------------------------------------------
 //  Datenstruktur: Sensordaten zu qSensor Queue
@@ -271,7 +239,7 @@ struct TelemetryData {
 //  Benötigte Queues für Datenaustausch zwischen den Tasks
 // ---------------------------------------------------------
 extern QueueHandle_t q_CRSF;    // RcInputData: RCCom → ControlSimTask
-extern QueueHandle_t q_Control;  // ControlCommandData: ControlSimTask → ActuatorTask
+extern QueueHandle_t q_Gpio;  // ControlCommandData: ControlSimTask → ActuatorTask
 extern QueueHandle_t q_Sensor;   // SensorData:  SensorTask → ControlSimTask
 extern QueueHandle_t q_Telemetry;     // TelemetryData: ControlSimTask → RCCom
 
@@ -286,57 +254,62 @@ struct TaskTimingConfig {
     uint16_t crsfTaskCycleMs;      // RcCom Zyklus
     uint16_t ctrlTaskCycleMs;    // CtrlSim Zyklus
     uint16_t sensorTaskCycleMs;  // SensorTask Zyklus
-    uint16_t actuatorTaskCycleMs;// AktorTask Zyklus
+    uint16_t gpioTaskCycleMs;// AktorTask Zyklus
 };
 extern const TaskTimingConfig cfg_taskTimings;
 
 // ----------------------------------------------------------
 //  RC Kanal Einstellungen:
-//  - zentrale Mappings Tabelle
+//  *** Zentrales Mapping Tabelle ist in der Config.cpp
 // ----------------------------------------------------------
-struct RcChannelConfig
-{
-    uint8_t     channelId;   // CRSF channel index (0..15)
-    RcInputType type;        // Signalart
-    uint16_t    min;         // Min-Wert
-    uint16_t    max;         // Max-Wert
-    uint16_t    center;      // Mittelstellung
 
-    //VehicleFeatureConfig  function;    // Funktionszuordnung
-};
-extern const RcChannelConfig cfg_rcChannels[];
-extern const size_t          cfg_rcChannelCount;
-
-const RcChannelConfig* getRcChannelConfig(uint8_t channelId);
-
-enum class PWFStatus : uint8_t {
-    Parken = 0,   // Fahrzeug ohne RC Verbindung
-    Wohnen = 1,   // Licht, Verbraucher an, aber kein Fahren
-    Fahren = 2    // Antrieb aktiv
+enum class InputType : uint8_t {
+    Analog,        // Stick/Poti
+    TwoPos,        // 2-Position
+    ThreePos,      // 3-Position
+    Momentary,      // Taster (Impuls)
+    InFunction
 };
 
-enum class FailSafe : uint8_t {
-    RC_Failure = 0,   // Fahrzeug ohne RC Verbindung
-    Sensor_Failure = 1,   // Keine Sensor Daten
+enum class OutputType : uint8_t {
+  PWM,           // Servo/ESC (1000-2000us)
+  Digital,        // GPIO HIGH/LOW
+  DAC
 };
 
+enum class ChannelIndex : uint8_t {
+  Channel1 = 0,
+  Channel2 = 1,
+  Channel3 = 2,
+  Channel4 = 3,
+  Channel5 = 4,
+  Channel6 = 5,
+  Channel7 = 6,
+  Channel8 = 7,
+  Channel9 = 8,
+  Channel10 = 9,
+  Channel11 = 10,
+  Channel12 = 11,
+  Channel13 = 12,
+  Channel14 = 13,
+  Channel15 = 14,
+  Channel16 = 15,
+  InFunction = 99  
+};
+
+struct RcGpioMap {
+  FunctionList  functionList;
+  ChannelIndex  channelIndex;     // 1..16 (oder 0..15 je nach deinem Indexing)
+  InputType     inputType;
+  GpioConfig    gpioConfig;
+  OutputType    outputType;
+};
+extern const RcGpioMap cfg_rcGpioMap[];
+extern const size_t MAP_COUNT;
 
 
 
-// Hilfsfunktionen (optional)
-// const RcChannelConfig* getRcChannelConfig(uint8_t channelId);
 
-// ---------------------------------------------------------
-//  Crossfire CRSF Verbindung zu RC Sender (Pocket):
-//  Hier stehen die benötigten Daten
-//  11 Bit: 0..2047 pro Kanal
-// ---------------------------------------------------------
 
-// #define CRSF_BAUDRATE 420000
-// #define CRSF_PACKET_LEN 24
-// #define CRSF_CHANNEL 16                 // Anzahl der Kanäle
-// #define RC_FAILSAFE_TIMEOUT_MS 300      // nach ..ms ohne Frame => Failsafe
-// #define RC_FAILSAFE_CYCLE 1000      // nach ..ms ohne Frame => Failsafe
-// #define RC_MAX 2000
-// #define RC_MIN 0
-// #define RC_MIDDLE 1000
+
+
