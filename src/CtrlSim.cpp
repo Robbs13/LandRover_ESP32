@@ -1,6 +1,6 @@
 #include "CtrlSim.h"
 #include "Config.h"   // für qRCCom, RcRawFrame etc.
-#include "vehicle/VehicleTypes.h"
+
 
 // ---------------------------------------------------------
 //  Klasse RcCom für die Kommunikation mit dem RC Sender
@@ -60,7 +60,6 @@ void CtrlSim::taskLoop() {
     const TickType_t period = pdMS_TO_TICKS(_cycleTime);     // Zykluszeit der Taskschleife
     TickType_t lastWake = xTaskGetTickCount();
 
-    //const EngineSpec& _engine = getEngineSpec(SELECTED_VEHICLE);
 
     _newRcData      = false;
     _failsafeActive = true;

@@ -245,3 +245,18 @@ void CtrlSim::handleLights()
         _lastValid = true;
     }
 }
+
+// Motorcharakteristik
+  EngineSpec engine;
+
+  // Schaltgetriebe
+  GearboxSpec gearbox;
+
+  // Verteilergetriebe (High / Low)
+  TransferCaseSpec transfer;
+
+  // Achsübersetzung
+  DiffSpec diff;
+
+  // Fahrzeugmasse, Räder, Widerstände
+  VehicleSpec chassis;
