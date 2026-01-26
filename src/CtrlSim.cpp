@@ -1,5 +1,6 @@
 #include "CtrlSim.h"
 #include "Config.h"   // für qRCCom, RcRawFrame etc.
+#include "vehicle/VehicleTypes.h"
 
 // ---------------------------------------------------------
 //  Klasse RcCom für die Kommunikation mit dem RC Sender
@@ -59,11 +60,14 @@ void CtrlSim::taskLoop() {
     const TickType_t period = pdMS_TO_TICKS(_cycleTime);     // Zykluszeit der Taskschleife
     TickType_t lastWake = xTaskGetTickCount();
 
+    //const EngineSpec& _engine = getEngineSpec(SELECTED_VEHICLE);
+
     _newRcData      = false;
     _failsafeActive = true;
     _newControlData = false;
 
     getIdxConfig();
+    
     setPWF(PWFStatus::Parken);
 
 
@@ -77,18 +81,16 @@ void CtrlSim::taskLoop() {
         u_int32_t startTaskTime= millis();
         _newRcData      = false;
 
-        _gpioFrame.pwmCount = _gpioFrame.digCount = _gpioFrame.dacCount = 0;
+        _gpioFrame.gpioCount = 0;
 
         
 
         //bool newChannelData = false;
         handleRcQueue();
 
-        failSafeActive();
-
-        //matchChannels();
-            
+        failSafeCheck();       
         
+        //if(_failsafeActive) setPWF(PWFStatus::Parken);
 
         // Switch Case für PWF - Ist Case Fahren aktiv, wird durch fallthrough auch Wohnen bearbeitet
         switch (_statePWF) {
@@ -113,7 +115,8 @@ void CtrlSim::taskLoop() {
                 break;
 
             case PWFStatus::Parken:
-                handleBlinkLights();
+                failSafeHandle();
+                //handleBlinkLights();
                 break;
         }
         _newControlData = false;
@@ -148,7 +151,21 @@ void CtrlSim::taskLoop() {
     }
 }
 
+// ---------------------------------------------------------
+//  Aktuelle RC Daten aus Config mappen
+// ---------------------------------------------------------
 void CtrlSim::getIdxConfig(){
+
+    int _idxBlinkLeft       = -2;
+    int _idxBlinkRight      = -2;
+    int _idxHeadLight       = -2;
+    int _idxBeamLight       = -2;
+    int _idxRearLight       = -2;
+    int _idxBrakeLight      = -2;
+    int _idxReverseLight    = -2;
+    int _idxPosLight        = -2;
+    int _idxWorkLight       = -2;
+    int _idxCabinLight      = -2;
 
     
     if (_idxBlinkLeft < 0) {
@@ -191,6 +208,18 @@ void CtrlSim::getIdxConfig(){
         _idxCabinLight = findFirstMapIndex(FunctionList::handleLightCabin);
         if (_idxCabinLight < 0) return;
     }
+
+    // -------- Config Mapper --------
+    _mapBlinkLeft       = &cfg_rcGpioMap[static_cast<size_t>(_idxBlinkLeft)];
+    _mapBlinkRight      = &cfg_rcGpioMap[static_cast<size_t>(_idxBlinkRight)];
+    _mapHeadLight       = &cfg_rcGpioMap[static_cast<size_t>(_idxHeadLight)];
+    _mapBeamLight       = &cfg_rcGpioMap[static_cast<size_t>(_idxBeamLight)];
+    _mapRearLight       = &cfg_rcGpioMap[static_cast<size_t>(_idxRearLight)];
+    _mapBrakeLight      = &cfg_rcGpioMap[static_cast<size_t>(_idxBrakeLight)];
+    _mapReverseLight    = &cfg_rcGpioMap[static_cast<size_t>(_idxReverseLight)];
+    _mapPosLight        = &cfg_rcGpioMap[static_cast<size_t>(_idxPosLight)];
+    _mapWorkLight       = &cfg_rcGpioMap[static_cast<size_t>(_idxWorkLight)];
+    _mapCabinLight      = &cfg_rcGpioMap[static_cast<size_t>(_idxCabinLight)];
 }
 
 // ---------------------------------------------------------
@@ -200,15 +229,13 @@ void CtrlSim::handleRcQueue()
 {
     if (!q_CRSF) return;
 
-    // Queue leeren, wir behalten den neuesten
-    uint32_t missed = 0;
-    
+    uint32_t missed = 0;    
     uint32_t _lastReceive = _rc.timestampMs;
 
+    // -------- Nur die neueste Nachricht wird behalten --------
     while (xQueueReceive(q_CRSF, &_rc, 0) == pdTRUE) {
         missed++;
         _newRcData = true;
-        //Serial.println(missed);
     }
 
     #if defined(DEBUG_CTRLSIM_RC_MISSED)
@@ -225,13 +252,14 @@ void CtrlSim::handleRcQueue()
 }
 
 // ---------------------------------------------------------
-//  Failsafe check und Datenstruktur anpassen
+//  Failsafe check und PWF Status setzen
 // ---------------------------------------------------------
-void CtrlSim::failSafeActive()
+void CtrlSim::failSafeCheck()
 {
+    // -------- Warten auf neue Nachricht --------
     if (!_newRcData) return;
 
-    // Failsafe wenn nicht UpLink in RC Message
+    // -------- Warnblinken wenn RC UpLink Fehler --------
     if (_rc.state != RcLinkState::UpLink){
         _failsafeActive = true; 
         setPWF(PWFStatus::Parken);
@@ -242,13 +270,36 @@ void CtrlSim::failSafeActive()
         if (_statePWF == PWFStatus::Parken){
             setPWF(PWFStatus::Wohnen);
         }
-        //Serial.println("CTRLSIM: TEST");
     }
   
-    
     _gpioFrame.failsafe = _failsafeActive;
 
     return;
+}
+
+// ---------------------------------------------------------
+//  Failsafe abhandeln: Warnblink und Ausgänge auf Failsafe
+// ---------------------------------------------------------
+void CtrlSim::failSafeHandle()
+{
+    
+    // -------- Warnblinken --------
+    handleBlinkLights();
+
+    // -------- Light Output auf Default Werte --------
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapHeadLight->gpioConfig),     CTRL_FAILSAFE_VALUE });
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapBeamLight->gpioConfig),     CTRL_FAILSAFE_VALUE });
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapRearLight->gpioConfig),     CTRL_FAILSAFE_VALUE });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapBrakeLight->gpioConfig),    CTRL_FAILSAFE_VALUE });
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapReverseLight->gpioConfig),  CTRL_FAILSAFE_VALUE });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapPosLight->gpioConfig),      CTRL_FAILSAFE_VALUE });   
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapWorkLight->gpioConfig),     CTRL_FAILSAFE_VALUE });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapCabinLight->gpioConfig),    CTRL_FAILSAFE_VALUE });  
+
+    // for (int i = 0; i < CRSF_NUM_CHANNELS; i++) {
+    //         _rc.channel[i] = 1500;
+    //     }
+
 }
 
 // ---------------------------------------------------------
@@ -256,19 +307,10 @@ void CtrlSim::failSafeActive()
 // ---------------------------------------------------------
 void CtrlSim::handleLights()
 {
-    // -------- Config Mapper --------
-    const auto& mapHead = cfg_rcGpioMap[static_cast<size_t>(_idxHeadLight)];
-    const auto& mapBeam = cfg_rcGpioMap[static_cast<size_t>(_idxBeamLight)];
-    const auto& mapRear = cfg_rcGpioMap[static_cast<size_t>(_idxRearLight)];
-    const auto& mapRev  = cfg_rcGpioMap[static_cast<size_t>(_idxReverseLight)];
-    const auto& mapPos  = cfg_rcGpioMap[static_cast<size_t>(_idxPosLight)];
-    const auto& mapWork = cfg_rcGpioMap[static_cast<size_t>(_idxWorkLight)];
-    const auto& mapCab  = cfg_rcGpioMap[static_cast<size_t>(_idxCabinLight)];
-
     // -------- Inputs --------
-    const bool rc_lightOn  = (_rc.channel[int(mapHead.channelIndex)] > CTRL_POS_2P_ON);
-    const bool rc_beamPressed = (_rc.channel[int(mapBeam.channelIndex)] > CTRL_POS_2P_ON);
-    const bool rc_workLightOn  = (_rc.channel[int(mapWork.channelIndex)] > CTRL_POS_2P_ON);
+    const bool rc_lightOn  = (_rc.channel[int(_mapHeadLight->channelIndex)] > CTRL_POS_2P_ON);
+    const bool rc_beamPressed = (_rc.channel[int(_mapBeamLight->channelIndex)] > CTRL_POS_2P_ON);
+    const bool rc_workLightOn  = (_rc.channel[int(_mapWorkLight->channelIndex)] > CTRL_POS_2P_ON);
     
 
     // ##### Ersetzen ####
@@ -334,30 +376,35 @@ void CtrlSim::handleLights()
             valueHead = LIGHT_OUT;
             valueRear = LIGHT_OUT;
             valuePos  = LIGHT_OUT;
+            // Serial.println("off");
             break;
 
         case LightState::Flash:
             valueHead = BEAM_BRIGHTNESS;
             valueRear = LIGHT_OUT;
             valuePos  = LIGHT_OUT;
+            //Serial.println("Flash");
             break;
 
         case LightState::LightOn:
             valueHead = HEAD_BRIGHTNESS;
             valueRear = REAR_BRIGHTNESS;  
-            valuePos  = POS_BRIGHTNESS;          
+            valuePos  = POS_BRIGHTNESS;  
+            //Serial.println("Lighton");        
             break;
 
         case LightState::BeamFlash:
             valueHead = BEAM_BRIGHTNESS;
             valueRear = REAR_BRIGHTNESS;
             valuePos  = POS_BRIGHTNESS; 
+            //Serial.println("BEamFlash");
             break;
 
         case LightState::BeamOn:
             valueHead = BEAM_BRIGHTNESS;
             valueRear = REAR_BRIGHTNESS; 
-            valuePos  = POS_BRIGHTNESS;          
+            valuePos  = POS_BRIGHTNESS;  
+            //Serial.println("BEamOn");        
             break;
     }
 
@@ -386,13 +433,13 @@ void CtrlSim::handleLights()
 
 
     // -------- Light Request an Queue --------
-    addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapHead.gpioConfig), valueHead });
-    addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapRear.gpioConfig), valueRear });  
-    addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapPos.gpioConfig),  valuePos });  
-    addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapRev.gpioConfig),  valueReverse });  
-    addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapWork.gpioConfig), valueWork });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapHeadLight->gpioConfig),valueHead });
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapRearLight->gpioConfig),valueRear });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapPosLight->gpioConfig), valuePos });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapReverseLight->gpioConfig), valueReverse });  
+    addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapWorkLight->gpioConfig),valueWork });  
 
-
+    //Serial.println(valueHead);
 
 }
 
@@ -401,17 +448,13 @@ void CtrlSim::handleLights()
 // ---------------------------------------------------------
 void CtrlSim::handleBlinkLights() {
 
-    // -------- Config Mapper --------
-    const auto& mapRight = cfg_rcGpioMap[static_cast<size_t>(_idxBlinkRight)];
-    const auto& mapLeft  = cfg_rcGpioMap[static_cast<size_t>(_idxBlinkLeft)];
-
     // -------- Warnblinken bei PWF Parken --------
     const bool hazardReq = (_statePWF == PWFStatus::Parken);
 
     // ### Achtung fix 3Pos ### 
-    const int  leftChannel  = _rc.channel[int(mapLeft.channelIndex)];
+    const int  leftChannel  = _rc.channel[int(_mapBlinkLeft->channelIndex)];
     const bool leftReq = (CTRL_3POS_2P_MIN < leftChannel && leftChannel < CTRL_3POS_2P_MAX);
-    const bool rightReq  = (_rc.channel[int(mapRight.channelIndex)] > CTRL_3POS_1P);
+    const bool rightReq  = (_rc.channel[int(_mapBlinkRight->channelIndex)] > CTRL_3POS_1P);
 
     // -------- Modus (Hazard hat Priorität) --------
     BlinkState blinkState = checkBlinkRequest(hazardReq, leftReq, rightReq); // Off/Left/Right/Hazard
@@ -444,16 +487,17 @@ void CtrlSim::handleBlinkLights() {
         // -------- Switch für Blinkstate --------
         switch (_activeBlink) {
             case BlinkState::Left:
-                addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapLeft.gpioConfig), value });
+                addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapBlinkLeft->gpioConfig), value });
                 break;
 
             case BlinkState::Right:
-                addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapRight.gpioConfig), value });
+                addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapBlinkRight->gpioConfig), value });
                 break;
 
             case BlinkState::Hazard:
-                addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapLeft.gpioConfig), value });
-                addPWM(_gpioFrame, PinControl{ static_cast<uint8_t>(mapRight.gpioConfig), value });
+                addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapBlinkLeft->gpioConfig), value });
+                addToGpioQueue(_gpioFrame, PinControl{ static_cast<uint8_t>(_mapBlinkRight->gpioConfig), value });
+                //Serial.println(value);
                 break;
 
             case BlinkState::Off:
@@ -494,8 +538,6 @@ void CtrlSim::debug()
         Serial.print("CTRLSIM: CtrlSim Failsafe   - "); 
         Serial.println(_failsafeActive);
     }
-    
-  
 }
 
 // ---------------------------------------------------------
@@ -506,8 +548,17 @@ void CtrlSim::publishGPIOQueue()
     if (q_Gpio != NULL) {
         // Neu geparste Channel Daten werden an die Queue übergeben
         //     
-           // Serial.println("New GPIO Data");
+           //Serial.println("New GPIO Data");
+            int dataCount = _gpioFrame.gpioCount; 
+            if (dataCount > 0){
+                xQueueOverwrite(q_Gpio, &_gpioFrame);
+                // Serial.print("New GPIO Data:   ");
+                // Serial.println(dataCount);
+
+            }
             xQueueOverwrite(q_Gpio, &_gpioFrame);
+
+
             
             // frame.timestampMs = _lastPacketMs;
             // for (int i = 0; i < CRSF_CHANNEL; ++i) {

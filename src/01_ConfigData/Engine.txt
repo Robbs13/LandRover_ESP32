@@ -1,0 +1,68 @@
+#pragma once
+
+#include "Vehicle.h"
+
+/** ---------------------------------------------------------
+ *  Beschreibt alle Eigenschaften eines realen Fahrzeugs,
+ *  die für die Längsdynamik-Simulation (Drehmoment, Drehzahl, Motorbremse, Begrenzer)
+ *  benötigt werden.
+ *  ---------------------------------------------------------
+*/
+
+// ---------------------------------------------------------
+//  Struct Motor Eigenschaften
+// ---------------------------------------------------------
+struct EngineSpec
+{
+    float idle_rpm;                         // Leerlaufdrehzahl des Motors [U/min]
+    float redline_rpm;                      // Maximale zulässige Drehzahl (Begrenzerbeginn) [U/min]
+    static const int TORQUE_POINTS = 6;     // Anzahl der Stützstellen der Drehmomentkennlinie
+    float rpm[TORQUE_POINTS];               // Drehzahl-Stützstellen der Drehmomentkurve [U/min] - {900, 1300, 1800, 2500, 3200, 3800}
+    float torque[TORQUE_POINTS];            // Normiertes Motordrehmoment bei den jeweiligen Drehzahlen [0.0..1.0]
+    float drag_k1;                          // Grund-Schleppmoment (Motorbremse) bei Leerlaufdrehzahl [0.0..1.0]
+    float drag_k2;                          // Drehzahlabhängiger Anteil des Schleppmoments [0.0..1.0] wie stark der Motor bei hohen Drehzahlen verzögert.
+    float limiter_soft_range;               // Bereich oberhalb der Redline, in dem der Soft-Limiter wirkt [U/min]
+};
+
+// ---------------------------------------------------------
+//  Konfiguration der einzelnen Motor Eigenschaften: 
+//  *** Hier erweitern! ***
+// ---------------------------------------------------------
+
+// -------- Land Rover Series III 2.25 Diesel (2286 cc, Type 10J/11J) --------
+const EngineSpec ENGINE_SERIES3_225_DIESELXXX = {
+    .idle_rpm = 850,
+    .redline_rpm = 3800,
+
+    .rpm =     { 900, 1300, 1800, 2500, 3200, 3800 },
+    .torque =  { 0.30, 0.70, 1.00, 0.85, 0.60, 0.40 },
+
+    .drag_k1 = 0.06,     // Grundschleppmoment
+    .drag_k2 = 0.25,     // quadratisch mit Drehzahl
+
+    .limiter_soft_range = 400
+};
+
+
+// ---------------------------------------------------------
+//  Methode um die Motordaten zu erhalten
+// ---------------------------------------------------------
+const inline EngineSpec& getEngineSpec(VehicleType v)
+{
+    switch(v) {
+        case ENGINE_SERIES3_225_DIESELXXX:
+            return ENGINE_SERIES3_225_DIESELXXX;
+
+        // case VEH_SERIES3_225_PETROL:
+        //     return ENGINE_SERIES3_225_PETROL;
+
+        default:
+            return ENGINE_SERIES3_225_DIESELXXX;
+    }
+}
+
+
+// ---------------------------------------------------------
+//  Konfiguration: 
+// ---------------------------------------------------------
+// --------  --------

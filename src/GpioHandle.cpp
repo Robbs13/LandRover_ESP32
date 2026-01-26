@@ -17,7 +17,8 @@ GpioHandle::GpioHandle(int n)
 void GpioHandle::begin() {
     // Pins ggf. aus Config nehmen: g_ioPins.pinXlrsRx / pinXlrsTx
     // _crsf.begin(CRSF_BAUDRATE, SERIAL_8N1, 16, 17); 
-    initFromConfig();
+    //initFromConfig();
+    
     Serial.println("CTRLSIM: Begin...");
 }
 
@@ -45,8 +46,6 @@ void GpioHandle::taskTrampoline(void *pvParameters) {
     self->taskLoop();   // jetzt sind wir im Instanz-Kontext
 }
 
-
-
 // ---------------------------------------------------------
 //  Task Loop für den Ablauf 
 // ---------------------------------------------------------
@@ -56,7 +55,7 @@ void GpioHandle::taskLoop() {
     const TickType_t period = pdMS_TO_TICKS(_cycleTime);     // Zykluszeit der Taskschleife
     TickType_t lastWake = xTaskGetTickCount();
 
- 
+    gpioTaskInit();
 
     for (;;)
     { 
@@ -70,7 +69,7 @@ void GpioHandle::taskLoop() {
 }
 
 // ---------------------------------------------------------
-//  Aktuelle RC Inputs aus Queue qRCCom holen
+//  Aktuelle GpioData aus der Queue holen
 // ---------------------------------------------------------
 void GpioHandle::handleGPIOQueue()
 {
@@ -100,129 +99,190 @@ void GpioHandle::handleGPIOQueue()
     return;
 }
 
+// ---------------------------------------------------------
+//  Ansteuerungen aus von GpioData abhandeln
+// ---------------------------------------------------------
 void GpioHandle::handleGPIOOutput()
 {
-    for (uint8_t i = 0; i < _gpioFrame.pwmCount; ++i){
-        writePwm(_gpioFrame.pwm[i].pin, _gpioFrame.pwm[i].value);
-        // writePwm(23, _gpioFrame.pwm[i].value);
-        // Serial.print("PWM: ");
-        // Serial.print(_gpioFrame.pwm[i].pin);
-        // Serial.print(" -  ");
-        // Serial.println(_gpioFrame.pwm[i].value);
+    // -------- _gpioFrame die einzelnen Ansteuerungen abarbeiten --------
+    for (uint8_t i = 0; i < _gpioFrame.gpioCount; ++i)
+    {
+        const uint8_t  pin      = _gpioFrame.gpioCtrl[i].pin;
+        const uint16_t rcValue  = _gpioFrame.gpioCtrl[i].value; // 1000..2000
+
+        OutputHardware hw = OutputHardware::Digital;
+        bool found = false;
+
+        // -------- Map durchsuchen: pin -> OutputHardware --------
+        for (uint8_t idx = 0; idx < MAP_COUNT; ++idx)
+        {
+            const RcGpioMap& cfg = cfg_rcGpioMap[idx];
+            if (pin == static_cast<uint8_t>(cfg.gpioConfig)) {
+                hw = cfg.outputHardware;
+                found = true;
+                break;
+            }
+        }
+        if (!found) continue;
+
+        // -------- Ansteuerung anhand der Hardware Pin Konfiguration --------
+        switch (hw)
+        {
+            case OutputHardware::Motor:
+                // TODO
+                break;
+
+            case OutputHardware::MotorESC:
+            {
+                int ch = _pinToCh[pin];
+                if (ch == INVALID_CH) break;
+
+                const uint32_t duty = rcToLedcDuty_ServoEsc(rcValue,
+                                                           PWM_SERV_MOT_FREQ,
+                                                           PWM_SERV_MOT_RES);
+                ledcWrite(ch, duty);
+                Serial.println("ServoESC ansteuerung:   ");
+                break;
+            }
+
+            case OutputHardware::Servo:
+            {
+                int ch = _pinToCh[pin];
+                if (ch == INVALID_CH) break;
+
+                const uint32_t duty = rcToLedcDuty_ServoEsc(rcValue,
+                                                           PWM_SERV_MOT_FREQ,
+                                                           PWM_SERV_MOT_RES);
+                ledcWrite(ch, duty);
+                Serial.println("ServoESC ansteuerung:   ");
+                break;
+            }
+
+            case OutputHardware::LED:
+            {
+                int ch = _pinToCh[pin];
+                if (ch == INVALID_CH) break;
+
+                const uint32_t duty = rcToLedcDuty_LedDim(rcValue, PWM_LED_RES);
+                ledcWrite(ch, duty);
+                break;
+            }
+
+            case OutputHardware::Digital:
+                digitalWrite(pin, (rcValue >= 1500) ? HIGH : LOW);
+                Serial.print("Digital ansteuerung      ");
+                Serial.println(pin);
+                break;
+
+            case OutputHardware::Sound:
+                // TODO
+                break;
+
+            default:
+                break;
+        }
+        
     }
-    
 
-    for (uint8_t i = 0; i < _gpioFrame.digCount; ++i)
-    gpio_set(_gpioFrame.dig[i].pin, _gpioFrame.dig[i].value);
-
-    for (uint8_t i = 0; i < _gpioFrame.dacCount; ++i)
-    dac_write(_gpioFrame.dac[i].pin, _gpioFrame.dac[i].value);
-
-    
-
-    return;
 }
 
-// void GpioHandle::writePwm(uint8_t pin, uint16_t value)
-// {
-//     // value: 1000..2000 (µs)
-//     // Umrechnen auf Duty (0..65535 bei 16 Bit)
-//     uint32_t duty = map(value, 1000, 2000, 0, (1 << PWM_RES) - 1);
-
-//     //uint8_t ch = pwmChannelForPin(pin);
-
-//     // ledcSetup(ch, PWM_FREQ, PWM_RES);
-//     // ledcAttachPin(pin, ch);
-
-//     // // PWM setzen
-//     // ledcWrite(ch, duty);
-    
-//     return;
-// }
-
-void GpioHandle::gpio_set(uint8_t pin, uint16_t value)
+// ---------------------------------------------------------
+//  GPIOs anhand der Config initialisieren - PWM,Digital...
+// ---------------------------------------------------------
+void GpioHandle::gpioTaskInit()
 {
+    // -------- _pinToCh auf ungültig setzen --------
+    for (int p = 0; p < MAX_GPIO; ++p) _pinToCh[p] = INVALID_CH;
 
+    int pwmChannel = 0;
 
-    
-    return;
+    // -------- Zeilen der Config abarbeiten --------
+    for (size_t i = 0; i < MAP_COUNT; ++i)
+    {
+        const RcGpioMap& cfg = cfg_rcGpioMap[i];
+        const uint8_t pin = static_cast<uint8_t>(cfg.gpioConfig);
+
+        if (pin == 99) continue;
+        if (pin >= MAX_GPIO) continue;
+
+        // -------- Anhand der angeschlossenen Hardware werden die Ausgänge initialisiert --------
+        switch (cfg.outputHardware)
+        {
+            case OutputHardware::MotorESC:
+            case OutputHardware::Servo:
+                initPwmPin(pin, PWM_SERV_MOT_FREQ, PWM_SERV_MOT_RES, pwmChannel);
+                break;
+
+            case OutputHardware::LED:
+                initPwmPin(pin, PWM_LED_FREQ, PWM_LED_RES, pwmChannel);
+                break;
+
+            case OutputHardware::Digital:
+                pinMode(pin, OUTPUT);
+                break;
+
+            case OutputHardware::Motor:   // TODO
+            case OutputHardware::Sound:   // TODO
+            default:
+                break;
+        }
+    }
 }
 
-void GpioHandle::dac_write(uint8_t pin, uint16_t value)
+// ---------------------------------------------------------
+//  LEDC PWM Channels initialisieren
+// ---------------------------------------------------------
+void GpioHandle::initPwmPin(uint8_t pin, uint32_t freq, uint8_t res, int &pwmChannel)
 {
+    if (_pinToCh[pin] != INVALID_CH) return;
 
+    if (pwmChannel >= MAX_PIN_PWM) {
+        Serial.printf("GPIOHandle: Zu viele PWM Ports (pin=%u)\n", pin);
+        return;
+    }
 
-    
-    return;
+    ledcSetup(pwmChannel, freq, res);
+    ledcAttachPin(pin, pwmChannel);
+
+    _pinToCh[pin] = (int8_t)pwmChannel;
+    pwmChannel++;
 }
 
-void GpioHandle::initFromConfig()
+// ---------------------------------------------------------
+//  Umrechnung von RC Werte 1000..2000us zu Servo/MotorESC
+// ---------------------------------------------------------
+uint32_t GpioHandle::rcToLedcDuty_ServoEsc(uint16_t rc_1000_2000,
+                              uint32_t servo_freq_hz,
+                              uint8_t  servo_res_bits)
 {
-  // pin->channel Tabelle auf "ungültig" setzen
-  for (uint8_t i = 0; i < MAX_GPIO; ++i) pinToCh_[i] = INVALID_CH;
-  nextCh_ = 0;
+    // Sicherheits-Clamp
+    rc_1000_2000 = clampU16(rc_1000_2000, 1000, 2000);
 
-  // Config scannen
-  for (size_t i = 0; i < MAP_COUNT; ++i) {
-    const auto& m = cfg_rcGpioMap[i];
+    // LEDC duty Bereich
+    const uint32_t maxDuty = (1u << servo_res_bits) - 1u;
 
-    if (m.outputType != OutputType::PWM) continue;
+    // Periode in µs (bei 50 Hz = 20000 µs)
+    const uint32_t period_us = 1000000u / servo_freq_hz;
 
-    const uint8_t pin = static_cast<uint8_t>(m.gpioConfig);
-    if (pin == 99) continue;              // "unused"
-    if (pin >= MAX_GPIO) continue;
+    // rc wird als Pulsbreite in µs interpretiert (1000..2000)
+    const uint32_t pulse_us = rc_1000_2000;
 
-    // wenn der Pin schon einen Channel hat -> überspringen (doppelte Pins)
-    if (pinToCh_[pin] != INVALID_CH) continue;
-
-    // neuen PWM Pin initialisieren
-    initPwmPin(pin);
-  }
+    // duty = pulse/period * maxDuty
+    return (uint32_t)((pulse_us * (uint64_t)maxDuty) / period_us);
 }
 
-void GpioHandle::initPwmPin(uint8_t pin)
+// ---------------------------------------------------------
+//  Umrechnung von RC Werte 1000..2000us zu LED Dim
+// ---------------------------------------------------------
+uint32_t GpioHandle::rcToLedcDuty_LedDim(uint16_t rc_1000_2000, uint8_t led_res_bits)
 {
-  if (nextCh_ >= MAX_LEDC_CH) {
-    // zu viele PWM Pins -> hier ggf. Fehlerflag setzen / Serial log
-    return;
-  }
+    rc_1000_2000 = clampU16(rc_1000_2000, 1000, 2000);
 
-  const uint8_t ch = nextCh_++;
-  pinToCh_[pin] = ch;
+    const uint32_t maxDuty = (1u << led_res_bits) - 1u;
 
-  ledcSetup(ch, PWM_FREQ, PWM_RES);
-  ledcAttachPin(pin, ch);
-
-  // optional: initial neutral/off
-  // ledcWrite(ch, 0);
+    // linear: 1000->0, 2000->maxDuty
+    return (uint32_t)(((rc_1000_2000 - 1000u) * (uint64_t)maxDuty) / 1000u);
 }
 
-void GpioHandle::writePwm(uint8_t pin, uint16_t us)
-{
-  if (pin >= MAX_GPIO) return;
 
-  const uint8_t ch = pinToCh_[pin];
 
-  //Serial.printf("writePwm pin=%u ch=%u v=%u\n", pin, ch, us);
-
-  if (ch == INVALID_CH) return;
-
-  // value ist immer 1000..2000 (laut deiner Vorgabe)
-  // -> auf duty 0..maxDuty mappen
-  const uint32_t maxDuty = (1u << PWM_RES) - 1u; // bei 8 Bit: 255
-
-  if (us <= 1000) {
-    ledcWrite(ch, 0);
-    return;
-  }
-  if (us >= 2000) {
-    ledcWrite(ch, maxDuty);
-    return;
-  }
-
-  const uint32_t x = static_cast<uint32_t>(us - 1000); // 0..1000
-  const uint32_t duty = (x * maxDuty) / 1000u;            // 0..255
-
-  ledcWrite(ch, duty);
-  
-}

@@ -17,6 +17,7 @@
 #define CTRL_3POS_2P_MIN 900
 #define CTRL_POS_2P_ON 1600
 #define CTRL_POS_2P_OFF 1400
+#define CTRL_FAILSAFE_VALUE 1000
 
 // -------- PWF state --------
 enum class PWFStatus : uint8_t {
@@ -96,7 +97,8 @@ private:
     // Methoden für die Verarbeitung der RC Sender Daten
     void getIdxConfig();
     void handleRcQueue();
-    void failSafeActive();
+    void failSafeCheck();
+    void failSafeHandle();
     void handleLights();
 
     void handleStartButton();
@@ -130,17 +132,19 @@ private:
     PWFStatus         _statePWF = PWFStatus::Parken;
     bool               _newControlData; 
 
-    // -------- Index aus Config Array --------
-    int _idxBlinkLeft       = -2;
-    int _idxBlinkRight      = -2;
-    int _idxHeadLight       = -2;
-    int _idxBeamLight       = -2;
-    int _idxRearLight       = -2;
-    int _idxBrakeLight      = -2;
-    int _idxReverseLight    = -2;
-    int _idxPosLight        = -2;
-    int _idxWorkLight       = -2;
-    int _idxCabinLight      = -2;
+    // -------- Mapping aus Config Array --------
+    const RcGpioMap* _mapBlinkLeft      = nullptr;
+    const RcGpioMap* _mapBlinkRight     = nullptr;
+    const RcGpioMap* _mapHeadLight      = nullptr;
+    const RcGpioMap* _mapBeamLight      = nullptr;
+    const RcGpioMap* _mapRearLight      = nullptr;
+    const RcGpioMap* _mapBrakeLight     = nullptr;
+    const RcGpioMap* _mapReverseLight   = nullptr;
+    const RcGpioMap* _mapPosLight       = nullptr;
+    const RcGpioMap* _mapWorkLight      = nullptr;
+    const RcGpioMap* _mapCabinLight     = nullptr;
+
+
 
     // -------- Lichtsteuerung --------
     uint32_t _beamPressStartMs = 0;
@@ -157,6 +161,8 @@ private:
     BlinkDir    _lastDir = BlinkDir::None;
     uint32_t    _lastBlinkMs  = 0;
 
+    // -------- Motorsteuerung --------
+  
 
 
     // ---------------------------------------------------------
@@ -180,20 +186,20 @@ private:
     }
 
     // -------- Hilfsprogramm um GPIO Liste für Queue befüllen --------
-    static inline void addPWM(GpioData& f, PinControl in)
+    static inline void addToGpioQueue(GpioData& f, PinControl in)
     {
-    addOrUpdate(f.pwm, f.pwmCount, MAX_PIN_PWM, in.pin, in.value);
+    addOrUpdate(f.gpioCtrl, f.gpioCount, MAX_PIN_ESP, in.pin, in.value);
     }
 
-    static inline void addDigital(GpioData& f, PinControl in)
-    {
-    addOrUpdate(f.dig, f.digCount, MAX_PIN_DIG, in.pin, in.value);
-    }
+    // static inline void addDigital(GpioData& f, PinControl in)
+    // {
+    // addOrUpdate(f.dig, f.digCount, MAX_PIN_DIG, in.pin, in.value);
+    // }
 
-    static inline void addDAC(GpioData& f, PinControl in)
-    {
-    addOrUpdate(f.dac, f.dacCount, MAX_PIN_DAC, in.pin, in.value);
-    }
+    // static inline void addDAC(GpioData& f, PinControl in)
+    // {
+    // addOrUpdate(f.dac, f.dacCount, MAX_PIN_DAC, in.pin, in.value);
+    // }
 
     // -------- Hilfsprogramm für Spannungseinbruch - Flicker --------
     static inline float expEase(float start, float end, float tSec, float tauSec) {

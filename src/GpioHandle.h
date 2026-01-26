@@ -6,8 +6,11 @@
 
 
 // Beispiel: 50 Hz Servo/LED PWM, 16 Bit Auflösung
-static constexpr uint32_t PWM_FREQ = 5000;
-static constexpr uint8_t  PWM_RES  = 8;
+static constexpr uint32_t PWM_SERV_MOT_FREQ = 50;
+static constexpr uint8_t  PWM_SERV_MOT_RES  = 16;
+static constexpr uint32_t PWM_LED_FREQ = 5000;
+static constexpr uint8_t  PWM_LED_RES  = 12;
+
 static constexpr uint8_t INVALID_CH = 0xFF;
 static constexpr uint8_t MAX_GPIO = 40;          // ESP32: 0..39
 static constexpr uint8_t MAX_LEDC_CH = 16;       // ESP32 LEDC channels
@@ -30,24 +33,34 @@ private:
     // Statischer „Trampolin“-Entry für FreeRTOS
     static void taskTrampoline(void *pvParameters);
 
-    void initFromConfig();                 // scan cfg_rcGpioMap und initialisiere alles
-    void writePwm(uint8_t pin, uint16_t us);
-    void initPwmPin(uint8_t pin);  
+    void gpioTaskInit();
+    void initPwmPin(uint8_t pin, uint32_t freq, uint8_t res, int &pwmChannel);  
 
-    //void buildFrame(bool failsafe, GpioData& out);
     void handleGPIOQueue();
     void handleGPIOOutput();
-    //void writePwm(uint8_t pin, uint16_t value);
-    void gpio_set(uint8_t pin, uint16_t value);
-    void dac_write(uint8_t pin, uint16_t value);
+
+    //uint16_t mapUsValueToLedValue(uint16_t value_us);
+
+    uint32_t rcToLedcDuty_ServoEsc(uint16_t rc_1000_2000,
+                              uint32_t servo_freq_hz,
+                              uint8_t  servo_res_bits);
+    uint32_t rcToLedcDuty_LedDim(uint16_t rc_1000_2000, uint8_t led_res_bits);
+
 
 private:
     TaskHandle_t    _taskHandle;
-    uint8_t             _cycleTime;   
-
-    GpioData _gpioFrame {};
-    uint8_t pinToCh_[MAX_GPIO];                      // pin -> ledc channel
-    uint8_t nextCh_ = 0;
+    uint8_t         _cycleTime;   
+    GpioData        _gpioFrame {};
+    static constexpr int8_t INVALID_CH = -1;
+    int8_t          _pinToCh[MAX_GPIO];                  // pin -> ledc channel
+    uint8_t         _nextCh = 0;
     
 
 };
+
+static inline uint16_t clampU16(uint16_t v, uint16_t lo, uint16_t hi)
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}

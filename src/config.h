@@ -88,6 +88,68 @@
     extern const VehicleSimConfig cfg_vehicleSim;
 #endif
 
+
+
+/** ---------------------------------------------------------
+ *  Beschreibt alle Eigenschaften eines realen Fahrzeugs,
+ *  die für die Längsdynamik-Simulation (Drehmoment, Drehzahl, Motorbremse, Begrenzer)
+ *  benötigt werden.
+ *  ---------------------------------------------------------
+*/
+
+// -------- Auswahl der möglichen Fahrzeuge --------
+// enum VehicleType {
+//     LR_SERIES3_225_DIESEL
+//     // später erweiterbar
+// };
+// constexpr VehicleType SELECTED_VEHICLE = LR_SERIES3_225_DIESEL;
+
+// // ---------------------------------------------------------
+// //  Konfiguration: Struct Motor Eigenschaften
+// // ---------------------------------------------------------
+// struct EngineSpec
+// {
+//     float idle_rpm;                         // Leerlaufdrehzahl des Motors [U/min]
+//     float redline_rpm;                      // Maximale zulässige Drehzahl (Begrenzerbeginn) [U/min]
+//     static const int TORQUE_POINTS = 6;     // Anzahl der Stützstellen der Drehmomentkennlinie
+//     float rpm[TORQUE_POINTS];               // Drehzahl-Stützstellen der Drehmomentkurve [U/min] - {900, 1300, 1800, 2500, 3200, 3800}
+//     float torque[TORQUE_POINTS];            // Normiertes Motordrehmoment bei den jeweiligen Drehzahlen [0.0..1.0]
+//     float drag_k1;                          // Grund-Schleppmoment (Motorbremse) bei Leerlaufdrehzahl [0.0..1.0]
+//     float drag_k2;                          // Drehzahlabhängiger Anteil des Schleppmoments [0.0..1.0] wie stark der Motor bei hohen Drehzahlen verzögert.
+//     float limiter_soft_range;               // Bereich oberhalb der Redline, in dem der Soft-Limiter wirkt [U/min]
+// };
+
+
+// // -------- Land Rover Series III 2.25 Diesel (2286 cc, Type 10J/11J) --------
+// const EngineSpec ENGINE_SERIES3_225_DIESEL = {
+//     .idle_rpm = 850,
+//     .redline_rpm = 3800,
+
+//     .rpm =     { 900, 1300, 1800, 2500, 3200, 3800 },
+//     .torque =  { 0.30, 0.70, 1.00, 0.85, 0.60, 0.40 },
+
+//     .drag_k1 = 0.06,     // Grundschleppmoment
+//     .drag_k2 = 0.25,     // quadratisch mit Drehzahl
+
+//     .limiter_soft_range = 400
+// };
+
+// // -------- Methode um die Motordaten zu erhalten --------
+// const inline EngineSpec& getEngineSpec(VehicleType v)
+// {
+//     switch(v) {
+//         case LR_SERIES3_225_DIESEL:
+//             return ENGINE_SERIES3_225_DIESEL;
+
+//         // case VEH_SERIES3_225_PETROL:
+//         //     return ENGINE_SERIES3_225_PETROL;
+
+//         default:
+//             return ENGINE_SERIES3_225_DIESEL;
+//     }
+// }
+
+
 // ---------------------------------------------------------
 //  Konfiguration: Sendeformat
 // ---------------------------------------------------------
@@ -102,9 +164,10 @@
 // ---------------------------------------------------------
 #if defined(ESP32AZDEVKITCV4)
     //#define ESP_PIN_MAX 20
-    #define MAX_PIN_PWM 18
+    #define MAX_PIN_PWM 16
     #define MAX_PIN_DIG 20
     #define MAX_PIN_DAC 2
+    #define MAX_PIN_ESP 40
 
     enum class GpioConfig : uint8_t{
         // Antriebe
@@ -169,7 +232,6 @@
 // ---------------------------------------------------------
 //  Datenstruktur: RC Eingaben zu qRCCom Queue
 // ---------------------------------------------------------
-
 enum class RcLinkState : uint8_t {
     UpLink,
     DownLink,       // timeout erkannt
@@ -186,14 +248,6 @@ struct RcFrameData {
 // ---------------------------------------------------------
 //  Datenstruktur: GpioData zu qControl Queue
 // ---------------------------------------------------------
-// struct ControlCommandData {
-//     bool FailSafeCtrl;
-//     uint32_t timestampMs;   // Timestamp der Nachricht
-//     //FunctionList funcList;
-//     uint16_t pinOut[static_cast<size_t>(FunctionList::count)];
-//     uint16_t Value[static_cast<size_t>(FunctionList::count)];
-// };
-
 struct PinControl {
   uint8_t  pin;     // echte GPIO-Nummer
   uint16_t value;   // RC: 1000..2000, 
@@ -203,13 +257,8 @@ struct GpioData {
   uint32_t tick;     // optional: xTaskGetTickCount()
   uint8_t  failsafe; // 0/1
 
-  uint8_t pwmCount;
-  uint8_t digCount;
-  uint8_t dacCount;
-
-  PinControl pwm[MAX_PIN_PWM];
-  PinControl dig[MAX_PIN_DIG];
-  PinControl dac[MAX_PIN_DAC];
+  uint8_t gpioCount;
+  PinControl gpioCtrl[MAX_PIN_ESP];
 };
 
 
@@ -277,6 +326,15 @@ enum class OutputType : uint8_t {
   DAC
 };
 
+enum class OutputHardware : uint8_t {
+  Motor,           // Servo/ESC (1000-2000us)
+  MotorESC,        // GPIO HIGH/LOW
+  Servo,
+  LED,
+  Sound,
+  Digital
+};
+
 enum class ChannelIndex : uint8_t {
   Channel1 = 0,
   Channel2 = 1,
@@ -298,11 +356,12 @@ enum class ChannelIndex : uint8_t {
 };
 
 struct RcGpioMap {
-  FunctionList  functionList;
-  ChannelIndex  channelIndex;     // 1..16 (oder 0..15 je nach deinem Indexing)
-  InputType     inputType;
-  GpioConfig    gpioConfig;
-  OutputType    outputType;
+  FunctionList      functionList;
+  ChannelIndex      channelIndex;     // 1..16 (oder 0..15 je nach deinem Indexing)
+  InputType         inputType;
+  GpioConfig        gpioConfig;
+  OutputType        outputType;
+  OutputHardware    outputHardware;
 };
 extern const RcGpioMap cfg_rcGpioMap[];
 extern const size_t MAP_COUNT;
